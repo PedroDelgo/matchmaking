@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { View, Pressable, useWindowDimensions } from "react-native";
-import { router } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { View, Pressable, BackHandler, Keyboard, Platform } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
   Text,
@@ -16,7 +16,8 @@ import {
 import { Motion } from "../components/Motion";
 import { useAppStore } from "../store/useAppStore";
 import { modalityIcon } from "../components/tournament";
-import { colors, fonts, tokens } from "../theme/tokens";
+import { colors, fonts } from "../theme/tokens";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 
 export function CreateScreen() {
   const draft = useAppStore((s) => s.draft),
@@ -26,7 +27,23 @@ export function CreateScreen() {
   const [error, setError] = useState(""),
     [discard, setDiscard] = useState(false),
     [busy, setBusy] = useState(false);
-  const wide = useWindowDimensions().width >= tokens.breakpoints.desktop;
+  const { desktop: wide, compact } = useResponsiveLayout();
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          const step = useAppStore.getState().draft.step;
+          if (step === 0) return false;
+          update({ step: step - 1 });
+          setError("");
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [update]),
+  );
   const validate = () => {
     if (!draft.name.trim()) return "Dê um nome ao campeonato.";
     if (draft.modality === "Outro" && !draft.customModality.trim())
@@ -36,7 +53,10 @@ export function CreateScreen() {
   const next = () => {
     const e = validate();
     setError(e);
-    if (!e) update({ step: Math.min(2, draft.step + 1) });
+    if (!e) {
+      Keyboard.dismiss();
+      update({ step: Math.min(2, draft.step + 1) });
+    }
   };
   const submit = () => {
     const e = validate();
@@ -350,7 +370,7 @@ export function CreateScreen() {
           )}
           <View
             style={{
-              flexDirection: "row",
+              flexDirection: compact ? "column-reverse" : "row",
               gap: 12,
               justifyContent: "space-between",
               marginTop: 24,

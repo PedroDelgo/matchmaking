@@ -2,6 +2,7 @@ import React, { type ReactNode, useId, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  ScrollView,
   Pressable,
   type PressableProps,
   type PressableStateCallbackType,
@@ -22,6 +23,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts, tokens, typography } from "../theme/tokens";
 import { useBrandFonts, fallbackFont } from "../theme/FontContext";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
@@ -643,7 +645,8 @@ export function ConfirmDialog({
   onCancel: () => void;
   destructive?: boolean;
 }) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion(),
+    insets = useSafeAreaInsets();
   return (
     <Modal
       visible={visible}
@@ -651,31 +654,47 @@ export function ConfirmDialog({
       animationType={reduced ? "none" : "fade"}
       onRequestClose={onCancel}
     >
-      <View style={s.backdrop}>
-        <Panel
-          accessibilityViewIsModal
-          style={{ width: "100%", maxWidth: 450, gap: 16, padding: 28 }}
+      <View
+        style={[
+          s.backdrop,
+          {
+            paddingTop: Math.max(tokens.spacing.section, insets.top),
+            paddingBottom: Math.max(tokens.spacing.section, insets.bottom),
+            paddingLeft: Math.max(tokens.spacing.section, insets.left),
+            paddingRight: Math.max(tokens.spacing.section, insets.right),
+          },
+        ]}
+      >
+        <ScrollView
+          style={{ width: "100%", maxWidth: 450, flexGrow: 0 }}
+          contentContainerStyle={{ paddingVertical: tokens.spacing.md }}
+          keyboardShouldPersistTaps="handled"
         >
-          <Icon
-            name={
-              destructive
-                ? "alert-circle-outline"
-                : "information-circle-outline"
-            }
-            size={30}
-            color={colors.primaryDark}
-          />
-          <Text variant="title">{title}</Text>
-          <Text color={colors.muted}>{description}</Text>
-          <View style={{ gap: 10, marginTop: 10 }}>
-            <Button
-              label={confirmLabel}
-              variant={destructive ? "danger" : "primary"}
-              onPress={onConfirm}
+          <Panel
+            accessibilityViewIsModal
+            style={{ width: "100%", maxWidth: 450, gap: 16, padding: 28 }}
+          >
+            <Icon
+              name={
+                destructive
+                  ? "alert-circle-outline"
+                  : "information-circle-outline"
+              }
+              size={30}
+              color={colors.primaryDark}
             />
-            <Button label="Cancelar" variant="outline" onPress={onCancel} />
-          </View>
-        </Panel>
+            <Text variant="title">{title}</Text>
+            <Text color={colors.muted}>{description}</Text>
+            <View style={{ gap: 10, marginTop: 10 }}>
+              <Button
+                label={confirmLabel}
+                variant={destructive ? "danger" : "primary"}
+                onPress={onConfirm}
+              />
+              <Button label="Cancelar" variant="outline" onPress={onCancel} />
+            </View>
+          </Panel>
+        </ScrollView>
       </View>
     </Modal>
   );

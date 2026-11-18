@@ -5,6 +5,10 @@ jest.mock("@expo/vector-icons/Ionicons", () => ({
   __esModule: true,
   default: Object.assign(() => null, { glyphMap: {} }),
 }));
+jest.mock("react-native-safe-area-context", () => ({
+  SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 // Animation is presentation-only; domain results and interactions remain real.
 jest.mock("react-native-reanimated", () => {
   const { View } = jest.requireActual("react-native");
@@ -24,15 +28,27 @@ jest.mock("react-native-reanimated", () => {
     }),
     useAnimatedStyle: (callback: () => unknown) => callback(),
     withTiming: (value: unknown) => value,
+    withDelay: (_delay: number, value: unknown) => value,
+    cancelAnimation: jest.fn(),
+    Easing: { in: (value: unknown) => value, quad: (value: number) => value },
     FadeInDown: animation,
+    ZoomIn: animation,
     SlideInLeft: animation,
     SlideInRight: animation,
   };
 });
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), replace: jest.fn(), navigate: jest.fn() },
+  router: {
+    push: jest.fn(),
+    replace: jest.fn(),
+    navigate: jest.fn(),
+    dismissTo: jest.fn(),
+  },
   usePathname: jest.fn(() => "/"),
   useLocalSearchParams: jest.fn(() => ({})),
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    require("react").useEffect(callback, [callback]);
+  },
 }));
 jest.mock("../src/components/Shell", () => ({
   Shell: ({ children }: { children: React.ReactNode }) => children,

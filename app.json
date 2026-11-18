@@ -17,7 +17,8 @@
       "bundleIdentifier": "app.matchmaking.local"
     },
     "android": {
-      "package": "app.matchmaking.local"
+      "package": "app.matchmaking.local",
+      "softwareKeyboardLayoutMode": "resize"
     }
   }
 }

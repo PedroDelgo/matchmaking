@@ -1,11 +1,20 @@
 import React, { type ReactNode, useState } from "react";
-import { View, ScrollView, Image, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  ScrollView,
+  Image,
+  Pressable,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text, Icon, Button, Avatar } from "./ui";
 import { colors, fonts, tokens } from "../theme/tokens";
 import { useAppStore } from "../store/useAppStore";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const destinations = [
   { label: "Início", href: "/" as const, icon: "home-outline" as const },
@@ -174,7 +183,9 @@ export function ScreenContainer({ children }: { children: ReactNode }) {
     error = useAppStore((s) => s.storageError);
   return (
     <ScrollView
+      style={{ flex: 1 }}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       contentContainerStyle={{ flexGrow: 1 }}
     >
       <View
@@ -205,12 +216,17 @@ export function ScreenContainer({ children }: { children: ReactNode }) {
 
 export function Shell({ children }: { children: ReactNode }) {
   const { desktop } = useResponsiveLayout(),
-    insets = useSafeAreaInsets();
+    insets = useSafeAreaInsets(),
+    keyboardVisible = useKeyboardVisible();
   return (
-    <View style={s.root}>
+    <KeyboardAvoidingView
+      style={s.root}
+      enabled={Platform.OS !== "web"}
+      behavior={Platform.OS === "web" ? undefined : "padding"}
+    >
       <AppHeader />
       <ScreenContainer>{children}</ScreenContainer>
-      {!desktop && (
+      {!desktop && !keyboardVisible && (
         <View
           style={[
             s.bottomSurface,
@@ -224,7 +240,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <AppNavigation placement="bottom" />
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 const s = StyleSheet.create({

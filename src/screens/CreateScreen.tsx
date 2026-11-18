@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Pressable, BackHandler, Keyboard, Platform } from "react-native";
+import { View, BackHandler, Keyboard, Platform } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
@@ -14,6 +14,7 @@ import {
   ConfirmDialog,
 } from "../components/ui";
 import { Motion } from "../components/Motion";
+import { SelectionCard } from "../components/SelectionCard";
 import { useAppStore } from "../store/useAppStore";
 import { modalityIcon } from "../components/tournament";
 import { colors, fonts } from "../theme/tokens";
@@ -27,6 +28,7 @@ export function CreateScreen() {
   const [error, setError] = useState(""),
     [discard, setDiscard] = useState(false),
     [busy, setBusy] = useState(false);
+  const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const { desktop: wide, compact } = useResponsiveLayout();
   useFocusEffect(
     useCallback(() => {
@@ -36,6 +38,7 @@ export function CreateScreen() {
         () => {
           const step = useAppStore.getState().draft.step;
           if (step === 0) return false;
+          setDirection("backward");
           update({ step: step - 1 });
           setError("");
           return true;
@@ -55,6 +58,7 @@ export function CreateScreen() {
     setError(e);
     if (!e) {
       Keyboard.dismiss();
+      setDirection("forward");
       update({ step: Math.min(2, draft.step + 1) });
     }
   };
@@ -62,6 +66,7 @@ export function CreateScreen() {
     const e = validate();
     if (e) {
       setError(e);
+      setDirection("backward");
       update({ step: 0 });
       return;
     }
@@ -82,11 +87,13 @@ export function CreateScreen() {
           icon="arrow-back"
           variant="ghost"
           style={{ alignSelf: "flex-start", marginBottom: 16 }}
-          onPress={() =>
-            draft.step > 0
-              ? update({ step: draft.step - 1 })
-              : router.navigate("/tournaments")
-          }
+          onPress={() => {
+            if (draft.step > 0) {
+              Keyboard.dismiss();
+              setDirection("backward");
+              update({ step: draft.step - 1 });
+            } else router.navigate("/tournaments");
+          }}
         />
         <View
           style={{
@@ -116,7 +123,7 @@ export function CreateScreen() {
             </View>
           ))}
         </View>
-        <Motion key={draft.step}>
+        <Motion key={draft.step} preset="transition" direction={direction}>
           <Text
             variant="display"
             style={{
@@ -169,54 +176,17 @@ export function CreateScreen() {
                     "Xadrez",
                     "Outro",
                   ].map((modality) => (
-                    <Pressable
+                    <SelectionCard
                       key={modality}
-                      accessibilityRole="radio"
-                      accessibilityLabel={modality}
-                      accessibilityState={{
-                        checked: draft.modality === modality,
-                      }}
-                      aria-checked={draft.modality === modality}
+                      label={modality}
+                      icon={modalityIcon(modality)}
+                      selected={draft.modality === modality}
                       onPress={() => {
                         update({ modality });
                         setError("");
                       }}
-                      style={({ pressed }) => [
-                        {
-                          width: wide ? "23.5%" : "47.5%",
-                          minHeight: 90,
-                          borderWidth: 2,
-                          borderColor:
-                            draft.modality === modality
-                              ? colors.primary
-                              : colors.border,
-                          backgroundColor:
-                            draft.modality === modality
-                              ? colors.primarySoft
-                              : colors.surface,
-                          borderRadius: 8,
-                          padding: 14,
-                          gap: 10,
-                          opacity: pressed ? 0.75 : 1,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Icon name={modalityIcon(modality)} size={24} />
-                        {draft.modality === modality && (
-                          <Icon
-                            name="checkmark-circle"
-                            color={colors.primaryDark}
-                          />
-                        )}
-                      </View>
-                      <Text>{modality}</Text>
-                    </Pressable>
+                      style={{ width: wide ? "23%" : "46%", flexGrow: 1 }}
+                    />
                   ))}
                 </View>
               </View>
@@ -249,6 +219,42 @@ export function CreateScreen() {
                 <Text color={colors.muted}>
                   Eliminação direta. Quem vence avança, até restar um campeão.
                 </Text>
+                <View
+                  accessible
+                  accessibilityLabel="Dois confrontos levam à final e a um campeão"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    paddingTop: 8,
+                  }}
+                >
+                  <View style={{ gap: 6 }}>
+                    {[0, 1].map((i) => (
+                      <View
+                        key={i}
+                        style={{
+                          height: 8,
+                          width: 42,
+                          backgroundColor: colors.primarySoft,
+                          borderLeftWidth: 3,
+                          borderLeftColor: colors.primary,
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <Icon name="chevron-forward" color={colors.muted} size={16} />
+                  <View
+                    style={{
+                      height: 12,
+                      width: 42,
+                      backgroundColor: colors.primary,
+                      borderRadius: 2,
+                    }}
+                  />
+                  <Icon name="chevron-forward" color={colors.muted} size={16} />
+                  <Icon name="trophy-outline" color={colors.primaryDark} />
+                </View>
               </Panel>
               <View style={{ flexDirection: wide ? "row" : "column", gap: 12 }}>
                 {["Pontos corridos", "Fase de grupos"].map((f) => (

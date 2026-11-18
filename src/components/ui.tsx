@@ -1,4 +1,10 @@
-import React, { type ReactNode, useId, useRef, useState } from "react";
+import React, {
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -18,10 +24,12 @@ import {
   type ViewStyle,
 } from "react-native";
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { motion } from "../theme/motion";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts, tokens, typography } from "../theme/tokens";
@@ -417,6 +425,20 @@ export function Progress({
   label?: string;
 }) {
   const v = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+  const reduced = useReducedMotion();
+  const progress = useSharedValue(v);
+  useEffect(() => {
+    progress.set(
+      withTiming(v, {
+        duration: reduced ? 0 : motion.duration.selection,
+        easing: motion.easing.standard,
+      }),
+    );
+    return () => cancelAnimation(progress);
+  }, [v, reduced, progress]);
+  const fill = useAnimatedStyle(() => ({
+    width: `${progress.get() * 100}%` as `${number}%`,
+  }));
   return (
     <View
       accessible
@@ -433,12 +455,14 @@ export function Progress({
         overflow: "hidden",
       }}
     >
-      <View
-        style={{
-          height: "100%",
-          width: `${v * 100}%`,
-          backgroundColor: color,
-        }}
+      <Animated.View
+        style={[
+          {
+            height: "100%",
+            backgroundColor: color,
+          },
+          fill,
+        ]}
       />
     </View>
   );

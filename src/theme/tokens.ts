@@ -1,3 +1,5 @@
+import { motion } from "./motion";
+
 export const colors = {
   primary: "#FF6A00",
   primaryDark: "#C24100",
@@ -53,12 +55,12 @@ export const tokens = {
   },
   radius: { sm: 6, md: 8, lg: 12, hero: 16, full: 999 },
   motion: {
-    press: 160,
-    selection: 200,
-    enter: 280,
+    press: motion.duration.micro,
+    selection: motion.duration.selection,
+    enter: motion.duration.transition,
     stagger: 60,
-    transition: 300,
-    navigation: 200,
+    transition: motion.duration.transition,
+    navigation: motion.duration.selection,
     draw: 2600,
   },
   interaction: {

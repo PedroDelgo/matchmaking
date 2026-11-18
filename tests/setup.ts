@@ -12,29 +12,58 @@ jest.mock("react-native-safe-area-context", () => ({
 // Animation is presentation-only; domain results and interactions remain real.
 jest.mock("react-native-reanimated", () => {
   const { View } = jest.requireActual("react-native");
-  const animation = { duration: () => animation, delay: () => animation };
+  const animation = {
+    duration: () => animation,
+    delay: () => animation,
+    easing: () => animation,
+    springify: () => animation,
+    damping: () => animation,
+    stiffness: () => animation,
+    withInitialValues: () => animation,
+  };
   return {
     __esModule: true,
     default: {
       View,
       createAnimatedComponent: (Component: unknown) => Component,
     },
-    useSharedValue: (value: unknown) => ({
-      value,
-      get: () => value,
-      set: (next: unknown) => {
-        value = next;
-      },
-    }),
+    useSharedValue: (value: unknown) => {
+      const ref = require("react").useRef(null);
+      if (!ref.current)
+        ref.current = {
+          value,
+          get() {
+            return this.value;
+          },
+          set(next: unknown) {
+            this.value = next;
+          },
+        };
+      return ref.current;
+    },
     useAnimatedStyle: (callback: () => unknown) => callback(),
     withTiming: (value: unknown) => value,
+    withSpring: (value: unknown) => value,
+    withSequence: (...values: unknown[]) => values[values.length - 1],
     withDelay: (_delay: number, value: unknown) => value,
     cancelAnimation: jest.fn(),
-    Easing: { in: (value: unknown) => value, quad: (value: number) => value },
+    Easing: {
+      in: (value: unknown) => value,
+      out: (value: unknown) => value,
+      inOut: (value: unknown) => value,
+      quad: (value: number) => value,
+      cubic: (value: number) => value,
+      exp: (value: number) => value,
+    },
+    FadeIn: animation,
+    FadeOut: animation,
+    FadeInLeft: animation,
+    FadeInRight: animation,
     FadeInDown: animation,
     ZoomIn: animation,
     SlideInLeft: animation,
     SlideInRight: animation,
+    LinearTransition: animation,
   };
 });
 jest.mock("expo-router", () => ({

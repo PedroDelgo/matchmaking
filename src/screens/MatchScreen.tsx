@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, TextInput, useWindowDimensions } from "react-native";
+import { View, TextInput, useWindowDimensions, Keyboard } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
@@ -20,10 +20,12 @@ function ScoreControl({
   name,
   value,
   onChange,
+  expanded,
 }: {
   name: string;
   value: string;
   onChange: (v: string) => void;
+  expanded: boolean;
 }) {
   const number = Number(value),
     change = (d: number) =>
@@ -36,7 +38,15 @@ function ScoreControl({
         ),
       );
   return (
-    <View style={{ gap: 22, alignItems: "center", flex: 1, minWidth: 0 }}>
+    <View
+      style={{
+        gap: 22,
+        alignItems: "center",
+        flex: expanded ? undefined : 1,
+        minWidth: 0,
+        width: expanded ? "100%" : undefined,
+      }}
+    >
       <Avatar name={name} size={64} />
       <Text variant="heading" style={{ textAlign: "center" }}>
         {name}
@@ -50,10 +60,11 @@ function ScoreControl({
         maxLength={6}
         selectTextOnFocus
         style={{
-          width: 112,
+          width: "100%",
+          maxWidth: 240,
           textAlign: "center",
           fontFamily: fonts.display,
-          fontSize: 72,
+          fontSize: value.length > 4 ? 36 : value.length > 3 ? 52 : 72,
           lineHeight: 84,
           color: colors.ink,
           borderBottomWidth: 2,
@@ -101,7 +112,9 @@ export function MatchScreen() {
     [confirm, setConfirm] = useState(false),
     [editing, setEditing] = useState(false),
     [saved, setSaved] = useState(false);
-  const wide = useWindowDimensions().width >= 700;
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 700 && fontScale < 1.4,
+    stacked = width < 360 || fontScale >= 1.4;
   if (!t || !m)
     return (
       <Shell>
@@ -180,7 +193,7 @@ export function MatchScreen() {
           variant="ghost"
           icon="arrow-back"
           style={{ alignSelf: "flex-start", marginBottom: 20 }}
-          onPress={() => router.replace(`/tournament/${t.id}/bracket`)}
+          onPress={() => router.dismissTo(`/tournament/${t.id}/bracket`)}
         />
         <PageHeading
           eyebrow={`${t.name} / ${t.rounds[m.roundIndex]?.label}`}
@@ -196,28 +209,43 @@ export function MatchScreen() {
             title="Os rivais ainda estão a caminho."
             description="Conclua as partidas anteriores para definir este confronto."
             actionLabel="Ver chaveamento"
-            onAction={() => router.replace(`/tournament/${t.id}/bracket`)}
+            onAction={() => router.dismissTo(`/tournament/${t.id}/bracket`)}
           />
         ) : (
           <>
             <Panel style={{ padding: wide ? 36 : 16, gap: 28 }}>
               <View
                 style={{
-                  flexDirection: "row",
-                  gap: wide ? 24 : 4,
+                  flexDirection: stacked ? "column" : "row",
+                  gap: stacked ? 24 : wide ? 24 : 4,
                   alignItems: "center",
                 }}
               >
                 {locked ? (
                   <>
-                    <View style={{ flex: 1, gap: 20, alignItems: "center" }}>
+                    <View
+                      style={{
+                        flex: stacked ? undefined : 1,
+                        gap: 20,
+                        alignItems: "center",
+                        minWidth: 0,
+                        width: stacked ? "100%" : undefined,
+                      }}
+                    >
                       <Avatar name={participantLabel(t, p1.id)} size={64} />
-                      <Text variant="heading" style={{ textAlign: "center" }}>
+                      <Text
+                        variant="heading"
+                        style={{ textAlign: "center", width: "100%" }}
+                      >
                         {participantLabel(t, p1.id)}
                       </Text>
                       <Text
                         variant="display"
-                        style={{ fontSize: 76, lineHeight: 84 }}
+                        style={{
+                          fontSize: String(m.score1).length > 3 ? 40 : 76,
+                          lineHeight: 84,
+                          maxWidth: "100%",
+                        }}
                       >
                         {m.score1}
                       </Text>
@@ -225,14 +253,29 @@ export function MatchScreen() {
                     <Text variant="title" color={colors.muted}>
                       ×
                     </Text>
-                    <View style={{ flex: 1, gap: 20, alignItems: "center" }}>
+                    <View
+                      style={{
+                        flex: stacked ? undefined : 1,
+                        gap: 20,
+                        alignItems: "center",
+                        minWidth: 0,
+                        width: stacked ? "100%" : undefined,
+                      }}
+                    >
                       <Avatar name={participantLabel(t, p2.id)} size={64} />
-                      <Text variant="heading" style={{ textAlign: "center" }}>
+                      <Text
+                        variant="heading"
+                        style={{ textAlign: "center", width: "100%" }}
+                      >
                         {participantLabel(t, p2.id)}
                       </Text>
                       <Text
                         variant="display"
-                        style={{ fontSize: 76, lineHeight: 84 }}
+                        style={{
+                          fontSize: String(m.score2).length > 3 ? 40 : 76,
+                          lineHeight: 84,
+                          maxWidth: "100%",
+                        }}
                       >
                         {m.score2}
                       </Text>
@@ -241,6 +284,7 @@ export function MatchScreen() {
                 ) : (
                   <>
                     <ScoreControl
+                      expanded={stacked}
                       name={participantLabel(t, p1.id)}
                       value={a}
                       onChange={(v) => {
@@ -253,6 +297,7 @@ export function MatchScreen() {
                       ×
                     </Text>
                     <ScoreControl
+                      expanded={stacked}
                       name={participantLabel(t, p2.id)}
                       value={b}
                       onChange={(v) => {
@@ -311,7 +356,7 @@ export function MatchScreen() {
                     label="Continuar no chaveamento"
                     icon="arrow-forward"
                     onPress={() =>
-                      router.replace(`/tournament/${t.id}/bracket`)
+                      router.dismissTo(`/tournament/${t.id}/bracket`)
                     }
                   />
                   <Button
@@ -338,7 +383,10 @@ export function MatchScreen() {
                     onPress={() => {
                       const e = validate();
                       setError(e);
-                      if (!e) setConfirm(true);
+                      if (!e) {
+                        Keyboard.dismiss();
+                        setConfirm(true);
+                      }
                     }}
                   />
                   {editing && (

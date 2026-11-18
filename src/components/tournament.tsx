@@ -148,6 +148,7 @@ export function MatchCard({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Partida ${m.positionIndex + 1}, ${t.rounds[m.roundIndex]?.label}`}
+      accessibilityHint={`${participantLabel(t, m.participant1Id)} contra ${participantLabel(t, m.participant2Id)}.${m.status === "completed" ? ` Placar ${m.score1} a ${m.score2}. Vencedor: ${participantLabel(t, m.winnerId)}.` : m.status === "ready" ? " Registrar placar." : " Aguardando resultados anteriores."}`}
       onPress={() => router.push(`/match/${m.id}?tournamentId=${t.id}`)}
       style={({ pressed }) => [
         s.match,
@@ -156,7 +157,7 @@ export function MatchCard({
         pressed && { opacity: 0.7 },
       ]}
     >
-      <View style={s.row}>
+      <View style={[s.row, { flexWrap: "wrap" }]}>
         <Text variant="caption">JOGO {m.positionIndex + 1}</Text>
         <Text
           variant="caption"
@@ -181,13 +182,13 @@ export function MatchCard({
             ]}
           >
             <Avatar name={p?.displayName ?? "?"} size={30} />
-            <Text style={{ flex: 1 }} numberOfLines={1}>
+            <Text style={{ flex: 1, minWidth: 0 }}>
               {participantLabel(t, id)}
             </Text>
             {m.winnerId === id && id && (
               <Icon name="checkmark" size={16} color={colors.primaryDark} />
             )}
-            <Text variant="label">
+            <Text variant="label" style={{ flexShrink: 0 }}>
               {(i === 0 ? m.score1 : m.score2) ?? "—"}
             </Text>
           </View>

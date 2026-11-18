@@ -20,6 +20,7 @@ import { colors, tokens } from "../theme/tokens";
 import type { Tournament } from "../features/tournaments/domain/types";
 
 function FullBracket({ t }: { t: Tournament }) {
+  const [slotHeight, setSlotHeight] = useState(190);
   return (
     <ScrollView
       horizontal
@@ -53,10 +54,21 @@ function FullBracket({ t }: { t: Tournament }) {
             {t.matches
               .filter((m) => m.roundIndex === index)
               .map((m, i) => {
-                const height = 190 * 2 ** index;
+                const height = slotHeight * 2 ** index;
                 return (
                   <View key={m.id} style={{ height, justifyContent: "center" }}>
-                    <MatchCard match={m} tournament={t} compact />
+                    <View
+                      onLayout={(event) =>
+                        setSlotHeight((previous) =>
+                          Math.max(
+                            previous,
+                            Math.ceil(event.nativeEvent.layout.height) + 16,
+                          ),
+                        )
+                      }
+                    >
+                      <MatchCard match={m} tournament={t} compact />
+                    </View>
                     {index < t.rounds.length - 1 && i % 2 === 0 && (
                       <>
                         <View

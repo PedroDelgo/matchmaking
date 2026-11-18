@@ -23,7 +23,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, tokens, typography } from "../theme/tokens";
-import { useBrandFonts } from "../theme/FontContext";
+import { useBrandFonts, fallbackFont } from "../theme/FontContext";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 export type IconName = keyof typeof Ionicons.glyphMap;
@@ -46,7 +46,7 @@ export function Text({
         { color },
         style,
         !brandFonts && {
-          fontFamily: undefined,
+          fontFamily: fallbackFont,
           fontWeight:
             variant === "display" ||
             variant === "title" ||
@@ -117,7 +117,7 @@ export function Button({
           : colors.transparent;
   const fg = variant === "secondary" || destructive ? colors.white : colors.ink;
   return (
-    <AnimatedPressable
+    <Pressable
       {...props}
       onFocus={(event) => {
         setFocused(true);
@@ -157,6 +157,8 @@ export function Button({
         disabled: unavailable,
         busy: !!loading,
       }}
+      aria-pressed={props.accessibilityState?.selected}
+      aria-busy={!!loading}
       disabled={disabled || loading}
       style={({ pressed }: PressableStateCallbackType) => [
         s.button,
@@ -176,21 +178,36 @@ export function Button({
           paddingHorizontal: tokens.spacing.lg,
         },
         style,
-        animatedStyle,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={fg} />
-      ) : (
-        icon && <Icon name={icon} size={18} color={fg} />
-      )}
-      <Text color={fg} style={typography.button}>
-        {label}
-      </Text>
-    </AnimatedPressable>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: tokens.spacing.sm,
+            flexShrink: 1,
+          },
+          animatedStyle,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={fg} />
+        ) : (
+          icon && <Icon name={icon} size={18} color={fg} />
+        )}
+        <Text
+          color={fg}
+          style={[typography.button, { flexShrink: 1, textAlign: "center" }]}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+    </Pressable>
   );
 }
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function Panel({ style, ...props }: ViewProps) {
   return <View {...props} style={[s.panel, style]} />;
 }
@@ -211,6 +228,7 @@ export function InteractiveCard({
       {...props}
       accessibilityRole={props.accessibilityRole ?? "button"}
       accessibilityState={{ ...props.accessibilityState, selected }}
+      aria-pressed={selected}
       onFocus={(e) => {
         setFocused(true);
         props.onFocus?.(e);
@@ -301,7 +319,7 @@ export function Field({
             backgroundColor: colors.backgroundSecondary,
             color: colors.muted,
           },
-          !brandFonts && { fontFamily: undefined },
+          !brandFonts && { fontFamily: fallbackFont },
         ]}
       />
       {error ? (
@@ -403,6 +421,9 @@ export function Progress({
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(v * 100) }}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(v * 100)}
       style={{
         height: 5,
         backgroundColor: colors.border,
@@ -432,7 +453,7 @@ export function Notice({
     <View
       accessible
       accessibilityRole={t === "error" ? "alert" : undefined}
-      accessibilityLiveRegion={t==='error'?'assertive':'polite'}
+      accessibilityLiveRegion={t === "error" ? "assertive" : "polite"}
       style={{
         backgroundColor: p.bg,
         flexDirection: "row",
@@ -592,6 +613,7 @@ export function LoadingState({
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       accessibilityState={{ busy: true }}
+      aria-busy={true}
       style={{
         alignItems: "center",
         justifyContent: "center",
@@ -663,17 +685,17 @@ const s = StyleSheet.create({
     minHeight: tokens.dimensions.button,
     borderRadius: tokens.radius.md,
     borderWidth: tokens.border.focus,
-    paddingHorizontal: 17,
-    paddingVertical: 10,
+    paddingHorizontal: tokens.spacing.md,
+    paddingVertical: tokens.spacing.compact,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: tokens.spacing.sm,
   },
   panel: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderWidth: 1,
+    borderWidth: tokens.border.thin,
     borderRadius: tokens.radius.lg,
     padding: tokens.spacing.lg,
     shadowColor: colors.ink,
@@ -682,11 +704,11 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   input: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    minHeight: tokens.dimensions.button,
+    borderWidth: tokens.border.thin,
+    borderRadius: tokens.radius.md,
+    paddingHorizontal: tokens.spacing.md,
+    paddingVertical: tokens.spacing.compact,
     fontFamily: fonts.regular,
     fontSize: 14,
     color: colors.ink,
@@ -696,7 +718,7 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: tokens.spacing.section,
     backgroundColor: colors.overlay,
   },
 });

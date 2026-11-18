@@ -8,7 +8,7 @@ import {
   LoadingState,
   Text,
 } from "../../src/components/ui";
-import { FontContext } from "../../src/theme/FontContext";
+import { FontContext, fallbackFont } from "../../src/theme/FontContext";
 
 test("seleção e loading preservam semântica e impedem ação durante envio", async () => {
   const press = jest.fn();
@@ -79,7 +79,7 @@ test("fonte de sistema funciona como fallback e loading possui label", async () 
   );
   expect(
     StyleSheet.flatten(ui.getByText("Bora competir?").props.style).fontFamily,
-  ).toBeUndefined();
+  ).toBe(fallbackFont);
   expect(
     ui.getByRole("progressbar", { name: "Abrindo campeonatos" }).props
       .accessibilityState,

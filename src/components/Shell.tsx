@@ -68,6 +68,7 @@ function NavigationItem({
       accessibilityRole="tab"
       accessibilityLabel={item.label}
       accessibilityState={{ selected: active }}
+      aria-selected={active}
       onPress={() => router.navigate(item.href)}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
@@ -250,7 +251,7 @@ const s = StyleSheet.create({
     height: "100%",
     gap: tokens.spacing.sm,
   },
-  mobileNav: { flexDirection: "row", flex: 1 },
+  mobileNav: { flexDirection: "row", width: "100%" },
   navItem: {
     minHeight: tokens.dimensions.button,
     paddingHorizontal: tokens.spacing.section,

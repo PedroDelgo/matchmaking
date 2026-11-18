@@ -298,7 +298,7 @@ export function MatchScreen() {
                   message={`${participantLabel(t, m.winnerId)} venceu${m.score1 === m.score2 ? " no desempate" : ""}.`}
                 />
               ) : null}
-              {error && <Notice tone="error" message={error} />}
+              {!!error && <Notice tone="error" message={error} />}
               {saved && (
                 <Notice
                   tone="success"

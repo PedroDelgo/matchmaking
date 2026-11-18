@@ -20,6 +20,13 @@ test("cria, sorteia, conclui, recarrega e corrige um campeonato", async ({
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      message.text().includes("A text node cannot be a child of a <View>")
+    )
+      errors.push(message.text());
+  });
   await page.goto("/");
   await expect(page.getByText("Bora competir?", { exact: true })).toBeVisible();
   await page.screenshot({

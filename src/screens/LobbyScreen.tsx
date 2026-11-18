@@ -56,7 +56,7 @@ export function LobbyScreen() {
   const full = t.participants.length === t.capacity,
     hasProfile = t.participants.some((p) => p.profileId === profile.id);
   const duplicate =
-    name.trim() &&
+    !!name.trim() &&
     t.participants.some(
       (p) =>
         p.displayName.toLocaleLowerCase("pt-BR") ===

@@ -130,3 +130,11 @@ O Playwright inicia o preview de `dist/` em `http://127.0.0.1:8081`. `npm.cmd ru
 - Convites por código/link/QR, contas, sincronização, backup e formatos futuros continuam pendentes de etapas próprias.
 
 Como o motor e o fluxo competitivo já estão implementados, a Etapa 3 deve começar pela homologação desse fluxo em dispositivos e pela revisão das interações com dados reais, aproveitando a cobertura existente. Refinamentos de sorteio e celebração podem ser tratados depois dessa revisão, sem reconstruir o motor. A integração remota deve aguardar definição própria de contrato, sincronização e recuperação de dados.
+
+## Correção posterior: texto solto em View
+
+O aviso `Unexpected text node: . A text node cannot be a child of a <View>` ao abrir o campeão vinha de `feedback && (...)`: com feedback vazio, a expressão entregava `""` como filho do ScreenContainer. A condição passou a ser booleana. O mesmo padrão foi corrigido no erro da partida, no cálculo de apelido duplicado da sala e nos textos opcionais de cabeçalhos/estado vazio. O Shell não precisava ser alterado.
+
+Acrescentados três testes de regressão que inspecionam os filhos dos Views, inclusive dentro de fragments: campeão antes/depois de copiar ou cancelar compartilhamento; sala com campo vazio e partida sem erro; componentes com textos opcionais vazios. Eles falharam antes da correção e passaram depois. A validação final passou em TypeScript, lint e **41 testes Jest em 7 suítes**.
+
+O fluxo completo de criar, sortear, concluir, recarregar e corrigir foi reexecutado no Chromium desktop contra o servidor Expo de desenvolvimento. Esse ambiente é relevante porque o aviso de React Native Web é desabilitado em produção. O teste passou sem o aviso, e `e2e/tournament.spec.ts` agora captura essa mensagem de console além de `pageerror`. Os totais de 20 casos e as exportações acima se referem à entrega original; não foram repetidos integralmente nesta correção pontual. Nenhum push foi realizado.

@@ -217,7 +217,7 @@ export function ChampionScreen() {
           />
         </View>
       </View>
-      {feedback && (
+      {!!feedback && (
         <View style={{ marginTop: 16 }}>
           <Notice message={feedback} />
         </View>

@@ -500,7 +500,7 @@ export function PageHeading({
       }}
     >
       <View style={{ flex: 1, gap: 10 }}>
-        {eyebrow && (
+        {!!eyebrow && (
           <Text variant="label" color={colors.primaryDark}>
             {eyebrow}
           </Text>
@@ -512,7 +512,7 @@ export function PageHeading({
         >
           {title}
         </Text>
-        {description && (
+        {!!description && (
           <Text color={colors.muted} style={{ maxWidth: 620 }}>
             {description}
           </Text>
@@ -545,9 +545,9 @@ export function SectionTitle({
     >
       <View style={{ flex: compact ? undefined : 1, gap: 4 }}>
         <Text variant="title">{title}</Text>
-        {subtitle && <Text color={colors.muted}>{subtitle}</Text>}
+        {!!subtitle && <Text color={colors.muted}>{subtitle}</Text>}
       </View>
-      {action && (
+      {!!action && (
         <Button
           label={action}
           variant="ghost"
@@ -592,7 +592,7 @@ export function EmptyState({
       <Text color={colors.muted} style={{ textAlign: "center", maxWidth: 390 }}>
         {description}
       </Text>
-      {actionLabel && (
+      {!!actionLabel && (
         <Button
           label={actionLabel}
           onPress={onAction}

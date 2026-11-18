@@ -148,7 +148,7 @@ A identidade foi consolidada em tokens semânticos: canvas branco, superfícies 
 
 Home e Torneios utilizam um grid medido de uma a três colunas e cards distintos para preparação, andamento e conclusão. Perfil preserva edição e estatísticas locais, com informações da versão do aplicativo. Movimento é finito e respeita a preferência reduzida. O motor competitivo existente foi preservado.
 
-Validação desta etapa: TypeScript e lint aprovados, **38 testes Jest**, **20 casos Playwright** nas quatro larguras, exportação web e bundles Hermes Android/iOS. Os 12 casos de interface foram reexecutados após os últimos ajustes. O [relatório da Etapa 2](docs/stage-2.md) detalha arquivos, componentes, correções, commits e limitações. Os commits desta etapa permanecem locais, sem push.
+Validação da entrega: TypeScript e lint aprovados, 38 testes Jest, **20 casos Playwright** nas quatro larguras, exportação web e bundles Hermes Android/iOS. Os 12 casos de interface foram reexecutados após os ajustes. A correção posterior de texto solto em View elevou a suíte para **41 testes Jest** aprovados e foi validada no fluxo completo em Chromium com servidor de desenvolvimento. O [relatório da Etapa 2](docs/stage-2.md) detalha arquivos, componentes, correções, commits e limitações. Os commits desta etapa permanecem locais, sem push.
 
 ## Limitações e próxima etapa
 

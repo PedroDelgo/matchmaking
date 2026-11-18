@@ -1,5 +1,7 @@
 # Validação — 18/11/2026
 
+Este registro corresponde à implementação inicial. A consolidação visual posterior, com 38 testes Jest e 20 casos Playwright em quatro larguras, está documentada no [relatório da Etapa 2](stage-2.md).
+
 Ambiente: Windows, PowerShell, Node 24.22.1. O diretório inicial continha somente README e Git; não havia protótipo HTML V2 ou outros mockups. Logo oficial fornecida e preservada em assets/brand/logo.png.
 
 ## Evidências

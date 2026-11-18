@@ -81,7 +81,7 @@ src/features/tournaments/
   domain/                    Tipos e identificação visual de nomes repetidos
   engine/                    Motor puro de chaveamento e estatísticas
 src/store/                   Zustand, validação e adaptador de armazenamento
-src/hooks/                   Preferência de movimento reduzido
+src/hooks/                   Movimento reduzido e layout responsivo
 src/utils/                   Compartilhamento com adaptador web
 assets/brand/logo.png         Logo oficial preservada
 tests/                       Domínio, persistência e comportamento das telas
@@ -103,7 +103,7 @@ scripts/                     Preview da exportação local
 | `npm.cmd test` | Testes Jest e React Native Testing Library |
 | `npm.cmd run build:web` | Exportação web em `dist/` |
 | `npm.cmd run preview` | Preview local de `dist/` |
-| `npm.cmd run test:e2e` | Playwright em 1440, 375 e 320 px |
+| `npm.cmd run test:e2e` | Playwright em 1440, 768, 375 e 320 px |
 | `npm.cmd run check:deps` | Compatibilidade das dependências com SDK |
 
 Para instalar o Chromium usado pelo Playwright em uma nova máquina:
@@ -131,7 +131,7 @@ Também é possível definir `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para um Chrom
 
 ## Implementado
 
-- Home com dados locais, busca e filtros de campeonatos.
+- Home com campeonatos locais e tela Torneios com busca e filtros funcionais.
 - Criação progressiva, rascunho recuperável e descarte confirmado.
 - Sala com adicionar/remover, capacidade, participação explícita do organizador e exemplos opcionais.
 - Sorteio único, persistido e pulável; animação e alternativa sem movimento.
@@ -142,13 +142,21 @@ Também é possível definir `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para um Chrom
 - Estados vazios, rotas inexistentes, limites, erros e confirmação antes de excluir.
 - Logo oficial copiada integralmente do arquivo fornecido. O monograma não foi fornecido e não foi recriado.
 
+## Consolidação da Etapa 2
+
+A identidade foi consolidada em tokens semânticos: canvas branco, superfícies claras, ações laranja, Barlow Condensed para impacto e Inter para leitura. Os componentes existentes foram aperfeiçoados com variantes de botão, loading, foco, seleção, erros de formulário e fallback de fontes. `AppHeader`, `AppNavigation` e `ScreenContainer` compartilham a navegação, com barra inferior no celular e navegação no cabeçalho desktop.
+
+Home e Torneios utilizam um grid medido de uma a três colunas e cards distintos para preparação, andamento e conclusão. Perfil preserva edição e estatísticas locais, com informações da versão do aplicativo. Movimento é finito e respeita a preferência reduzida. O motor competitivo existente foi preservado.
+
+Validação desta etapa: TypeScript e lint aprovados, **38 testes Jest**, **20 casos Playwright** nas quatro larguras, exportação web e bundles Hermes Android/iOS. Os 12 casos de interface foram reexecutados após os últimos ajustes. O [relatório da Etapa 2](docs/stage-2.md) detalha arquivos, componentes, correções, commits e limitações. Os commits desta etapa permanecem locais, sem push.
+
 ## Limitações e próxima etapa
 
 Sem backend, login, sincronização, convites remotos, notificações ou QR Code funcional. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos; não existe backup em nuvem.
 
-A validação web foi feita no Chromium em três larguras, com toque simulado nas larguras móveis. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
+A validação web foi feita no Chromium em quatro larguras (1440, 768, 375 e 320 px), com toque simulado nos projetos tablet e mobile. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
 
-A auditoria npm encontrou alertas em dependências transitivas do ecossistema Expo/Metro/Jest. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`, que sugeria retroceder o SDK. A revisão desses alertas é uma pendência para publicação comercial. Veja [o relatório de validação](docs/validation.md).
+A auditoria npm da implementação inicial encontrou alertas em dependências transitivas do ecossistema Expo/Metro/Jest. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`, que sugeria retroceder o SDK. A auditoria não foi repetida na Etapa 2. A revisão desses alertas é uma pendência para publicação comercial. Veja [o relatório de validação inicial](docs/validation.md).
 
 **Próximo passo recomendado:** homologar em Android e iPhone reais, incluindo persistência, teclado, animações, compartilhamento e acessibilidade. Depois, definir o contrato do backend e uma estratégia de backup/migração antes de implementar convites reais.
 

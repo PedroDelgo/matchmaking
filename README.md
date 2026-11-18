@@ -148,7 +148,13 @@ A identidade foi consolidada em tokens semânticos: canvas branco, superfícies 
 
 Home e Torneios utilizam um grid medido de uma a três colunas e cards distintos para preparação, andamento e conclusão. Perfil preserva edição e estatísticas locais, com informações da versão do aplicativo. Movimento é finito e respeita a preferência reduzida. O motor competitivo existente foi preservado.
 
-Validação da entrega: TypeScript e lint aprovados, 38 testes Jest, **20 casos Playwright** nas quatro larguras, exportação web e bundles Hermes Android/iOS. Os 12 casos de interface foram reexecutados após os ajustes. A correção posterior de texto solto em View elevou a suíte para **41 testes Jest** aprovados e foi validada no fluxo completo em Chromium com servidor de desenvolvimento. O [relatório da Etapa 2](docs/stage-2.md) detalha arquivos, componentes, correções, commits e limitações. Os commits desta etapa permanecem locais, sem push.
+Validação da entrega: TypeScript e lint aprovados, 38 testes Jest, **20 casos Playwright** nas quatro larguras, exportação web e bundles Hermes Android/iOS. Os 12 casos de interface foram reexecutados após os ajustes. A correção posterior de texto solto em View elevou a suíte para **41 testes Jest** aprovados e foi validada no fluxo completo em Chromium com servidor de desenvolvimento. O [relatório da Etapa 2](docs/stage-2.md) registra essa entrega, enviada ao remoto após autorização posterior do usuário.
+
+## Estabilidade e revisão mobile — Etapa 3
+
+Teclado e navegação por etapas foram preparados para as plataformas nativas; modais permitem rolagem e respeitam safe areas. Nomes e placares longos foram revistos, o retorno recupera o chaveamento existente e animações temporárias encerram com cleanup. A hidratação agora preserva envelopes inválidos e impede que campos persistidos substituam ações do store.
+
+Validação atual: **63 testes Jest e 28 casos Playwright completos**, TypeScript/lint aprovados, verificações adicionais no servidor de desenvolvimento, exportação web e bundles Hermes Android/iOS. O [relatório da Etapa 3](docs/stage-3.md) distingue os testes executados das pendências e fornece o roteiro Android/iOS. Não houve execução nativa em aparelho/emulador. Os commits da Etapa 3 permanecem locais, sem push.
 
 ## Limitações e próxima etapa
 

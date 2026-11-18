@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, TextInput, useWindowDimensions, Keyboard } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Shell } from "../components/Shell";
+import { Motion } from "../components/Motion";
 import {
   Text,
   Button,
@@ -13,7 +14,7 @@ import {
   EmptyState,
 } from "../components/ui";
 import { useAppStore } from "../store/useAppStore";
-import { colors, fonts } from "../theme/tokens";
+import { colors, fonts, tokens } from "../theme/tokens";
 import { participantLabel } from "../features/tournaments/domain/labels";
 
 function ScoreControl({
@@ -129,6 +130,8 @@ export function MatchScreen() {
   const p1 = t.participants.find((p) => p.id === m.participant1Id),
     p2 = t.participants.find((p) => p.id === m.participant2Id);
   const locked = m.status === "completed" && !editing;
+  const isFinal =
+    m.nextMatchId === null && m.roundIndex === t.rounds.length - 1;
   const hasDownstream = (() => {
     let next = m.nextMatchId;
     while (next) {
@@ -204,6 +207,71 @@ export function MatchScreen() {
               : "Aqui, cada ponto muda a história."
           }
         />
+        {isFinal ? (
+          <Motion
+            key={`${t.id}-final-${m.participant1Id}-${m.participant2Id}`}
+            preset="competition"
+            style={{ marginBottom: tokens.spacing.lg }}
+          >
+            <Panel
+              style={{
+                backgroundColor: colors.ink,
+                borderColor: colors.ink,
+                borderTopColor: colors.primary,
+                borderTopWidth: tokens.border.emphasis,
+                gap: tokens.spacing.compact,
+                padding: wide ? tokens.spacing.xl : tokens.spacing.lg,
+              }}
+            >
+              <Text variant="label" color={colors.primary}>
+                {locked
+                  ? "Decisão encerrada"
+                  : p1 && p2
+                    ? "Vale o título"
+                    : "A decisão está chegando"}
+              </Text>
+              <Text
+                variant="display"
+                color={colors.white}
+                style={{ fontSize: wide ? 64 : 48, lineHeight: wide ? 68 : 52 }}
+              >
+                GRANDE FINAL
+              </Text>
+              <View
+                style={{
+                  flexDirection: stacked ? "column" : "row",
+                  alignItems: stacked ? "flex-start" : "center",
+                  gap: tokens.spacing.compact,
+                }}
+              >
+                <Text
+                  variant="heading"
+                  color={colors.white}
+                  style={{ flex: stacked ? undefined : 1 }}
+                >
+                  {participantLabel(t, m.participant1Id)}
+                </Text>
+                <Text variant="label" color={colors.primary}>
+                  VS
+                </Text>
+                <Text
+                  variant="heading"
+                  color={colors.white}
+                  style={{ flex: stacked ? undefined : 1 }}
+                >
+                  {participantLabel(t, m.participant2Id)}
+                </Text>
+              </View>
+              <Text variant="caption" color={colors.inverseMuted}>
+                {locked
+                  ? "A decisão está registrada. A revisão do resultado continua disponível abaixo."
+                  : p1 && p2
+                    ? "Os finalistas estão definidos. Registre o placar para decidir o campeão."
+                    : "Os vencedores das semifinais ocuparão estes lugares."}
+              </Text>
+            </Panel>
+          </Motion>
+        ) : null}
         {!p1 || !p2 ? (
           <EmptyState
             title="Os rivais ainda estão a caminho."
@@ -338,10 +406,15 @@ export function MatchScreen() {
                 </View>
               )}
               {locked ? (
-                <Notice
-                  tone="success"
-                  message={`${participantLabel(t, m.winnerId)} venceu${m.score1 === m.score2 ? " no desempate" : ""}.`}
-                />
+                <Motion
+                  key={`${m.winnerId}-${m.score1}-${m.score2}`}
+                  preset="transition"
+                >
+                  <Notice
+                    tone="success"
+                    message={`${participantLabel(t, m.winnerId)} venceu${m.score1 === m.score2 ? " no desempate" : ""}.`}
+                  />
+                </Motion>
               ) : null}
               {!!error && <Notice tone="error" message={error} />}
               {saved && (

@@ -1,5 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { router } from "expo-router";
 import {
   Text,
@@ -13,6 +19,9 @@ import {
 import { colors, tokens } from "../theme/tokens";
 import type { Tournament, Match } from "../features/tournaments/domain/types";
 import { participantLabel } from "../features/tournaments/domain/labels";
+import { Motion } from "./Motion";
+import { motion } from "../theme/motion";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 export const statusLabel = {
   draft: "Em preparação",
@@ -144,57 +153,125 @@ export function MatchCard({
   tournament: Tournament;
   compact?: boolean;
 }) {
+  const reduced = useReducedMotion();
+  const pressScale = useSharedValue(1);
+  const feedback = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.get() }],
+  }));
+  useEffect(() => () => cancelAnimation(pressScale), [pressScale]);
   return (
-    <Pressable
+    <InteractiveCard
       accessibilityRole="button"
       accessibilityLabel={`Partida ${m.positionIndex + 1}, ${t.rounds[m.roundIndex]?.label}`}
       accessibilityHint={`${participantLabel(t, m.participant1Id)} contra ${participantLabel(t, m.participant2Id)}.${m.status === "completed" ? ` Placar ${m.score1} a ${m.score2}. Vencedor: ${participantLabel(t, m.winnerId)}.` : m.status === "ready" ? " Registrar placar." : " Aguardando resultados anteriores."}`}
       onPress={() => router.push(`/match/${m.id}?tournamentId=${t.id}`)}
-      style={({ pressed }) => [
+      onPressIn={() =>
+        pressScale.set(
+          reduced
+            ? 1
+            : withTiming(motion.scale.pressed, {
+                duration: motion.duration.micro,
+                easing: motion.easing.standard,
+              }),
+        )
+      }
+      onPressOut={() =>
+        pressScale.set(
+          reduced
+            ? 1
+            : withTiming(1, {
+                duration: motion.duration.micro,
+                easing: motion.easing.enter,
+              }),
+        )
+      }
+      style={[
         s.match,
         compact && { width: 240 },
         m.status === "ready" && { borderColor: colors.primary },
-        pressed && { opacity: 0.7 },
       ]}
     >
-      <View style={[s.row, { flexWrap: "wrap" }]}>
-        <Text variant="caption">JOGO {m.positionIndex + 1}</Text>
-        <Text
-          variant="caption"
-          color={m.status === "ready" ? colors.primaryDark : colors.muted}
+      <Animated.View style={feedback}>
+        <Motion
+          key={`${m.id}-${m.winnerId ?? "pending"}-${m.score1}-${m.score2}`}
         >
-          {m.status === "completed"
-            ? "✓ Encerrado"
-            : m.status === "ready"
-              ? "Registrar placar →"
-              : "Aguardando"}
-        </Text>
-      </View>
-      {[m.participant1Id, m.participant2Id].map((id, i) => {
-        const p = t.participants.find((x) => x.id === id);
-        return (
-          <View
-            key={i}
-            style={[
-              s.player,
-              m.winnerId === id &&
-                id !== null && { backgroundColor: colors.primarySoft },
-            ]}
-          >
-            <Avatar name={p?.displayName ?? "?"} size={30} />
-            <Text style={{ flex: 1, minWidth: 0 }}>
-              {participantLabel(t, id)}
-            </Text>
-            {m.winnerId === id && id && (
-              <Icon name="checkmark" size={16} color={colors.primaryDark} />
-            )}
-            <Text variant="label" style={{ flexShrink: 0 }}>
-              {(i === 0 ? m.score1 : m.score2) ?? "—"}
-            </Text>
+          <View style={{ gap: tokens.spacing.compact }}>
+            <View style={[s.row, { flexWrap: "wrap" }]}>
+              <Text variant="caption">JOGO {m.positionIndex + 1}</Text>
+              <Text
+                variant="caption"
+                color={m.status === "ready" ? colors.primaryDark : colors.muted}
+              >
+                {m.status === "completed"
+                  ? "✓ Encerrado"
+                  : m.status === "ready"
+                    ? "Registrar placar →"
+                    : "Aguardando"}
+              </Text>
+            </View>
+            {[m.participant1Id, m.participant2Id].map((id, i) => {
+              const p = t.participants.find((x) => x.id === id);
+              return (
+                <View
+                  key={i}
+                  style={[
+                    s.player,
+                    compact && {
+                      flexDirection: "column",
+                      alignItems: "stretch",
+                      gap: tokens.spacing.xs,
+                    },
+                    m.winnerId === id &&
+                      id !== null && { backgroundColor: colors.primarySoft },
+                    !!m.winnerId &&
+                      m.winnerId !== id && { opacity: motion.opacity.subtle },
+                  ]}
+                >
+                  {!compact ? (
+                    <Avatar name={p?.displayName ?? "?"} size={30} />
+                  ) : null}
+                  <Text style={{ flex: compact ? undefined : 1, minWidth: 0 }}>
+                    {participantLabel(t, id)}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: tokens.spacing.sm,
+                      justifyContent: compact ? "space-between" : undefined,
+                    }}
+                  >
+                    {compact ? (
+                      <Text variant="caption" color={colors.muted}>
+                        Placar
+                      </Text>
+                    ) : null}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: tokens.spacing.sm,
+                      }}
+                    >
+                      {m.winnerId === id && !!id && (
+                        <Icon
+                          name="checkmark"
+                          size={16}
+                          color={colors.primaryDark}
+                        />
+                      )}
+                      <Text variant="label" style={{ flexShrink: 0 }}>
+                        {(i === 0 ? m.score1 : m.score2) ?? "—"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-        );
-      })}
-    </Pressable>
+        </Motion>
+      </Animated.View>
+    </InteractiveCard>
   );
 }
 export function TournamentTabs({

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Animated, {
@@ -9,6 +9,7 @@ import Animated, {
   useAnimatedStyle,
   withDelay,
   withTiming,
+  cancelAnimation,
 } from "react-native-reanimated";
 import { Shell } from "../components/Shell";
 import {
@@ -24,23 +25,33 @@ import { useAppStore } from "../store/useAppStore";
 import { getRanking } from "../features/tournaments/engine/tournament";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { shareText } from "../utils/share";
-import { colors } from "../theme/tokens";
+import { colors, tokens } from "../theme/tokens";
+
+const confettiCount = 24;
+// The final particle finishes after 4,745 ms. Remove the decorative layer too.
+const celebrationDuration = 5000;
 
 function Confetti({ index }: { index: number }) {
   const y = useSharedValue(-50),
     spin = useSharedValue(0);
   useEffect(() => {
-    y.value = withDelay(
-      index * 55,
-      withTiming(620, {
-        duration: 2100 + index * 60,
-        easing: Easing.in(Easing.quad),
-      }),
+    y.set(
+      withDelay(
+        index * 55,
+        withTiming(620, {
+          duration: 2100 + index * 60,
+          easing: Easing.in(Easing.quad),
+        }),
+      ),
     );
-    spin.value = withTiming(index % 2 === 0 ? 360 : -360, { duration: 2800 });
+    spin.set(withTiming(index % 2 === 0 ? 360 : -360, { duration: 2800 }));
+    return () => {
+      cancelAnimation(y);
+      cancelAnimation(spin);
+    };
   }, [index, y, spin]);
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: y.value }, { rotate: `${spin.value}deg` }],
+    transform: [{ translateY: y.get() }, { rotate: `${spin.get()}deg` }],
   }));
   return (
     <Animated.View
@@ -64,9 +75,31 @@ export function ChampionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
     t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
   const reduced = useReducedMotion(),
-    wide = useWindowDimensions().width >= 700;
+    { width, fontScale } = useWindowDimensions(),
+    wide = width >= tokens.breakpoints.tablet && fontScale < 1.6;
   const [feedback, setFeedback] = useState(""),
-    [shareFallback, setShareFallback] = useState(false);
+    [shareFallback, setShareFallback] = useState(false),
+    [sharing, setSharing] = useState(false),
+    [finishedCelebration, setFinishedCelebration] = useState<string | null>(
+      null,
+    );
+  const celebrationKey = t?.championId ? `${t.id}:${t.championId}` : null;
+  const sharingRef = useRef(false),
+    mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (reduced || !celebrationKey) return;
+    const timeout = setTimeout(
+      () => setFinishedCelebration(celebrationKey),
+      celebrationDuration,
+    );
+    return () => clearTimeout(timeout);
+  }, [reduced, celebrationKey]);
   if (!t)
     return (
       <Shell>
@@ -82,7 +115,7 @@ export function ChampionScreen() {
           title="O troféu ainda está em jogo."
           description="Conclua a final para descobrir quem leva esse campeonato."
           actionLabel="Ver chaveamento"
-          onAction={() => router.replace(`/tournament/${id}/bracket`)}
+          onAction={() => router.dismissTo(`/tournament/${id}/bracket`)}
         />
       </Shell>
     );
@@ -100,8 +133,25 @@ export function ChampionScreen() {
           minHeight: 620,
         }}
       >
-        {!reduced &&
-          Array.from({ length: 24 }, (_, i) => <Confetti key={i} index={i} />)}
+        {!reduced && finishedCelebration !== celebrationKey && (
+          <View
+            testID="champion-confetti"
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+            }}
+          >
+            {Array.from({ length: confettiCount }, (_, i) => (
+              <Confetti key={i} index={i} />
+            ))}
+          </View>
+        )}
         <Text variant="label" color={colors.primary}>
           A RESENHA TEM UM NOME NO TOPO.
         </Text>
@@ -122,12 +172,17 @@ export function ChampionScreen() {
         </Animated.View>
         <Animated.View
           entering={reduced ? undefined : FadeInDown.delay(200).duration(400)}
-          style={{ alignItems: "center", gap: 10 }}
+          style={{ alignItems: "center", gap: 10, width: "100%" }}
         >
           <Text
             variant="display"
             color={colors.primary}
-            style={{ fontSize: wide ? 88 : 64, lineHeight: wide ? 92 : 70 }}
+            style={{
+              fontSize: wide ? 88 : 64,
+              lineHeight: wide ? 92 : 70,
+              textAlign: "center",
+              maxWidth: "100%",
+            }}
           >
             Campeão!
           </Text>
@@ -138,6 +193,7 @@ export function ChampionScreen() {
               fontSize: wide ? 64 : 44,
               lineHeight: wide ? 70 : 50,
               textAlign: "center",
+              width: "100%",
             }}
           >
             {champion.displayName}
@@ -148,8 +204,9 @@ export function ChampionScreen() {
         </Animated.View>
         <View
           style={{
-            flexDirection: "row",
-            gap: wide ? 48 : 24,
+            flexDirection: wide ? "row" : "column",
+            flexWrap: "wrap",
+            gap: wide ? 32 : 20,
             paddingVertical: 24,
             borderTopWidth: 1,
             borderBottomWidth: 1,
@@ -167,11 +224,19 @@ export function ChampionScreen() {
               label: "Aproveitamento",
             },
           ].map((item) => (
-            <View key={item.label} style={{ alignItems: "center", gap: 4 }}>
+            <View
+              key={item.label}
+              style={{
+                alignItems: "center",
+                gap: 4,
+                minWidth: 0,
+                flexShrink: 1,
+              }}
+            >
               <Text
                 variant="title"
                 color={colors.white}
-                style={{ fontSize: 36, lineHeight: 40 }}
+                style={{ fontSize: 36, lineHeight: 44, textAlign: "center" }}
               >
                 {item.n}
               </Text>
@@ -191,9 +256,16 @@ export function ChampionScreen() {
           <Button
             label="Compartilhar conquista"
             icon="share-social-outline"
+            loading={sharing}
             onPress={async () => {
+              if (sharingRef.current) return;
+              sharingRef.current = true;
+              setSharing(true);
+              setShareFallback(false);
+              setFeedback("");
               try {
                 const result = await shareText(message);
+                if (!mounted.current) return;
                 setFeedback(
                   result === "copied"
                     ? "Texto copiado. Cole onde quiser compartilhar."
@@ -202,10 +274,14 @@ export function ChampionScreen() {
                       : "",
                 );
               } catch {
+                if (!mounted.current) return;
                 setShareFallback(true);
                 setFeedback(
                   "Selecione o texto abaixo para copiar e compartilhar.",
                 );
+              } finally {
+                sharingRef.current = false;
+                if (mounted.current) setSharing(false);
               }
             }}
           />
@@ -213,7 +289,7 @@ export function ChampionScreen() {
             label="Ver todos os resultados"
             variant="outline"
             style={{ backgroundColor: colors.white }}
-            onPress={() => router.replace(`/tournament/${id}/bracket`)}
+            onPress={() => router.dismissTo(`/tournament/${id}/bracket`)}
           />
         </View>
       </View>

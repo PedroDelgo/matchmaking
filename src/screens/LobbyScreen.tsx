@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
   SlideInLeft,
@@ -38,15 +39,24 @@ export function LobbyScreen() {
     [deleting, setDeleting] = useState(false),
     [drawing, setDrawing] = useState(false);
   const wide = useWindowDimensions().width >= tokens.breakpoints.desktop,
-    reduced = useReducedMotion();
+    reduced = useReducedMotion(),
+    insets = useSafeAreaInsets();
+  const drawingRef = useRef(false);
+  const finishDrawing = useCallback(() => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    setDrawing(false);
+    router.replace(`/tournament/${id}/bracket`);
+  }, [id]);
   useEffect(() => {
     if (!drawing) return;
-    const timeout = setTimeout(() => {
-      setDrawing(false);
-      router.replace(`/tournament/${id}/bracket`);
-    }, 2600);
+    if (reduced) {
+      finishDrawing();
+      return;
+    }
+    const timeout = setTimeout(finishDrawing, tokens.motion.draw);
     return () => clearTimeout(timeout);
-  }, [drawing, id]);
+  }, [drawing, finishDrawing, reduced]);
   if (!t)
     return (
       <Shell>
@@ -72,11 +82,14 @@ export function LobbyScreen() {
     }
   };
   const start = () => {
+    if (drawingRef.current) return;
+    drawingRef.current = true;
     try {
       useAppStore.getState().start(id);
-      if (reduced) router.replace(`/tournament/${id}/bracket`);
+      if (reduced) finishDrawing();
       else setDrawing(true);
     } catch (e) {
+      drawingRef.current = false;
       setError((e as Error).message);
     }
   };
@@ -364,101 +377,116 @@ export function LobbyScreen() {
       <Modal
         visible={drawing}
         animationType={reduced ? "none" : "fade"}
-        onRequestClose={() => {
-          setDrawing(false);
-          router.replace(`/tournament/${id}/bracket`);
-        }}
+        onRequestClose={finishDrawing}
       >
         <View
           style={{
             flex: 1,
             backgroundColor: colors.ink,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-            gap: 24,
           }}
         >
-          <Text variant="label" color={colors.primary}>
-            AGORA É PRA VALER
-          </Text>
-          <Text
-            variant="display"
-            color={colors.white}
-            style={{ textAlign: "center" }}
-          >
-            O destino da disputa.
-          </Text>
-          <Text color={colors.inverseSecondary} style={{ textAlign: "center" }}>
-            Os confrontos estão definidos. Que vença o melhor.
-          </Text>
           <ScrollView
-            style={{ width: "100%", maxWidth: 460, maxHeight: 320 }}
-            contentContainerStyle={{ gap: 12 }}
-          >
-            {t.matches
-              .filter((m) => m.roundIndex === 0)
-              .map((m, i) => (
-                <Animated.View
-                  key={m.id}
-                  entering={
-                    reduced
-                      ? undefined
-                      : FadeInDown.delay(i * 250).duration(400)
-                  }
-                  style={{
-                    padding: 18,
-                    backgroundColor: colors.inverseSurface,
-                    borderRadius: 8,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <Animated.View
-                    entering={
-                      reduced
-                        ? undefined
-                        : SlideInLeft.delay(i * 180).duration(450)
-                    }
-                    style={{ flex: 1 }}
-                  >
-                    <Text color={colors.white}>
-                      {
-                        t.participants.find((p) => p.id === m.participant1Id)
-                          ?.displayName
-                      }
-                    </Text>
-                  </Animated.View>
-                  <Text variant="title" color={colors.primary}>
-                    ×
-                  </Text>
-                  <Animated.View
-                    entering={
-                      reduced
-                        ? undefined
-                        : SlideInRight.delay(i * 180).duration(450)
-                    }
-                    style={{ flex: 1 }}
-                  >
-                    <Text color={colors.white} style={{ textAlign: "right" }}>
-                      {
-                        t.participants.find((p) => p.id === m.participant2Id)
-                          ?.displayName
-                      }
-                    </Text>
-                  </Animated.View>
-                </Animated.View>
-              ))}
-          </ScrollView>
-          <Button
-            label="Pular animação"
-            variant="primary"
-            onPress={() => {
-              setDrawing(false);
-              router.replace(`/tournament/${id}/bracket`);
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: tokens.spacing.lg + insets.top,
+              paddingLeft: tokens.spacing.lg + insets.left,
+              paddingRight: tokens.spacing.lg + insets.right,
+              paddingBottom: tokens.spacing.lg,
+              gap: tokens.spacing.lg,
             }}
-          />
+          >
+            <Text variant="label" color={colors.primary}>
+              AGORA É PRA VALER
+            </Text>
+            <Text
+              variant="display"
+              color={colors.white}
+              style={{ textAlign: "center" }}
+            >
+              O destino da disputa.
+            </Text>
+            <Text
+              color={colors.inverseSecondary}
+              style={{ textAlign: "center" }}
+            >
+              Os confrontos estão definidos. Que vença o melhor.
+            </Text>
+            <View style={{ width: "100%", maxWidth: 460, gap: 12 }}>
+              {t.matches
+                .filter((m) => m.roundIndex === 0)
+                .map((m, i) => (
+                  <Animated.View
+                    key={m.id}
+                    entering={
+                      reduced
+                        ? undefined
+                        : FadeInDown.delay(i * 250).duration(400)
+                    }
+                    style={{
+                      padding: 18,
+                      backgroundColor: colors.inverseSurface,
+                      borderRadius: 8,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <Animated.View
+                      entering={
+                        reduced
+                          ? undefined
+                          : SlideInLeft.delay(i * 180).duration(450)
+                      }
+                      style={{ flex: 1 }}
+                    >
+                      <Text color={colors.white}>
+                        {
+                          t.participants.find((p) => p.id === m.participant1Id)
+                            ?.displayName
+                        }
+                      </Text>
+                    </Animated.View>
+                    <Text variant="title" color={colors.primary}>
+                      ×
+                    </Text>
+                    <Animated.View
+                      entering={
+                        reduced
+                          ? undefined
+                          : SlideInRight.delay(i * 180).duration(450)
+                      }
+                      style={{ flex: 1 }}
+                    >
+                      <Text color={colors.white} style={{ textAlign: "right" }}>
+                        {
+                          t.participants.find((p) => p.id === m.participant2Id)
+                            ?.displayName
+                        }
+                      </Text>
+                    </Animated.View>
+                  </Animated.View>
+                ))}
+            </View>
+          </ScrollView>
+          <View
+            style={{
+              alignItems: "center",
+              paddingTop: tokens.spacing.compact,
+              paddingBottom: tokens.spacing.lg + insets.bottom,
+              paddingLeft: tokens.spacing.lg + insets.left,
+              paddingRight: tokens.spacing.lg + insets.right,
+            }}
+          >
+            <Button
+              label="Pular animação"
+              variant="primary"
+              onPress={finishDrawing}
+              style={{ width: "100%", maxWidth: 460 }}
+            />
+          </View>
         </View>
       </Modal>
     </Shell>

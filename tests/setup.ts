@@ -31,7 +31,7 @@ jest.mock("react-native-reanimated", () => {
 });
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), replace: jest.fn(), navigate: jest.fn() },
-  usePathname: () => "/",
+  usePathname: jest.fn(() => "/"),
   useLocalSearchParams: jest.fn(() => ({})),
 }));
 jest.mock("../src/components/Shell", () => ({

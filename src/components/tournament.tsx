@@ -1,25 +1,46 @@
 import React from "react";
 import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
-import { Text, Icon, Avatar, Chip, Progress, Panel } from "./ui";
+import {
+  Text,
+  Icon,
+  Avatar,
+  Chip,
+  Progress,
+  Panel,
+  InteractiveCard,
+} from "./ui";
+import { colors, tokens } from "../theme/tokens";
 import type { Tournament, Match } from "../features/tournaments/domain/types";
 import { participantLabel } from "../features/tournaments/domain/labels";
 
 export const statusLabel = {
   draft: "Em preparação",
   active: "Em andamento",
-  completed: "Finalizado",
+  completed: "Concluído",
 };
 export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
   const done = t.matches.filter((m) => m.status === "completed").length;
   const next = t.matches.find((m) => m.status === "ready");
   const name = (id: string | null) => participantLabel(t, id);
   return (
-    <Pressable
+    <InteractiveCard
       accessibilityRole="button"
       accessibilityLabel={`Abrir ${t.name}`}
+      accessibilityHint={`${statusLabel[t.status]}, ${t.participants.length} de ${t.capacity} participantes. ${t.status === "draft" ? "Abrir sala" : t.status === "completed" ? "Ver resultados" : "Continuar disputa"}.`}
       onPress={() => router.push(`/tournament/${t.id}`)}
-      style={({ pressed }) => [s.card, pressed && { opacity: 0.7 }]}
+      style={[
+        s.card,
+        {
+          borderTopWidth: tokens.border.emphasis,
+          borderTopColor:
+            t.status === "active"
+              ? colors.primary
+              : t.status === "completed"
+                ? colors.ink
+                : colors.border,
+        },
+      ]}
     >
       <View style={s.cardTop}>
         <View style={s.sport}>
@@ -30,14 +51,22 @@ export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
           tone={t.status === "active" ? "orange" : "neutral"}
         />
       </View>
-      <Text variant="heading" style={{ marginTop: 20 }}>
+      <Text
+        variant="heading"
+        style={{ marginTop: tokens.spacing.section }}
+        numberOfLines={2}
+      >
         {t.name}
       </Text>
-      <Text variant="caption" style={{ marginTop: 6 }}>
+      <Text
+        variant="caption"
+        color={colors.muted}
+        style={{ marginTop: tokens.spacing.xs }}
+      >
         {t.modality} · Mata-mata
       </Text>
       <View style={[s.row, { marginTop: 22, marginBottom: 10 }]}>
-        <View style={s.row}>
+        <View style={[s.row, { flexShrink: 1 }]}>
           <Icon name="people-outline" size={15} />
           <Text variant="caption">
             {t.participants.length}/{t.capacity} participantes
@@ -50,6 +79,12 @@ export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
         </Text>
       </View>
       <Progress
+        label={
+          t.status === "draft"
+            ? "Ocupação das vagas"
+            : "Progresso do campeonato"
+        }
+        color={t.status === "completed" ? colors.ink : colors.primary}
         value={
           t.status === "draft"
             ? t.participants.length / t.capacity
@@ -57,16 +92,31 @@ export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
         }
       />
       <View style={s.cardBottom}>
-        <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
-          {t.championId
-            ? `Campeão: ${name(t.championId)}`
-            : next
-              ? `${name(next.participant1Id)} × ${name(next.participant2Id)}`
-              : "Vamos reunir a galera?"}
-        </Text>
-        <Icon name="arrow-forward" size={18} />
+        <View style={{ flex: 1, gap: tokens.spacing.xs }}>
+          <Text variant="caption" numberOfLines={1}>
+            {t.championId
+              ? `Campeão: ${name(t.championId)}`
+              : next
+                ? `${name(next.participant1Id)} × ${name(next.participant2Id)}`
+                : "Vamos reunir a galera?"}
+          </Text>
+          <Text
+            variant="label"
+            color={t.status === "active" ? colors.primaryDark : colors.muted}
+          >
+            {t.status === "draft"
+              ? "Abrir sala"
+              : t.status === "completed"
+                ? "Ver resultados"
+                : "Continuar disputa"}
+          </Text>
+        </View>
+        <Icon
+          name={t.status === "completed" ? "trophy-outline" : "arrow-forward"}
+          size={18}
+        />
       </View>
-    </Pressable>
+    </InteractiveCard>
   );
 }
 export function modalityIcon(
@@ -102,7 +152,7 @@ export function MatchCard({
       style={({ pressed }) => [
         s.match,
         compact && { width: 240 },
-        m.status === "ready" && { borderColor: "#FF6A00" },
+        m.status === "ready" && { borderColor: colors.primary },
         pressed && { opacity: 0.7 },
       ]}
     >
@@ -110,7 +160,7 @@ export function MatchCard({
         <Text variant="caption">JOGO {m.positionIndex + 1}</Text>
         <Text
           variant="caption"
-          color={m.status === "ready" ? "#C24100" : "#686868"}
+          color={m.status === "ready" ? colors.primaryDark : colors.muted}
         >
           {m.status === "completed"
             ? "✓ Encerrado"
@@ -127,7 +177,7 @@ export function MatchCard({
             style={[
               s.player,
               m.winnerId === id &&
-                id !== null && { backgroundColor: "#FFF1E7" },
+                id !== null && { backgroundColor: colors.primarySoft },
             ]}
           >
             <Avatar name={p?.displayName ?? "?"} size={30} />
@@ -135,7 +185,7 @@ export function MatchCard({
               {participantLabel(t, id)}
             </Text>
             {m.winnerId === id && id && (
-              <Icon name="checkmark" size={16} color="#C24100" />
+              <Icon name="checkmark" size={16} color={colors.primaryDark} />
             )}
             <Text variant="label">
               {(i === 0 ? m.score1 : m.score2) ?? "—"}
@@ -153,7 +203,7 @@ export function TournamentTabs({
   id: string;
   active: "lobby" | "bracket" | "stats";
 }) {
-  const compact = useWindowDimensions().width < 600;
+  const compact = useWindowDimensions().width < tokens.breakpoints.compact;
   return (
     <View style={s.tabs}>
       {(
@@ -176,6 +226,7 @@ export function TournamentTabs({
           accessibilityRole="tab"
           accessibilityLabel={tab.label}
           accessibilityState={{ selected: active === tab.route }}
+          aria-selected={active === tab.route}
           onPress={() => router.replace(`/tournament/${id}/${tab.route}`)}
           style={[
             s.tab,
@@ -191,12 +242,12 @@ export function TournamentTabs({
           <Icon
             name={tab.icon}
             size={18}
-            color={active === tab.route ? "#C24100" : "#686868"}
+            color={active === tab.route ? colors.primaryDark : colors.muted}
           />
           <Text
             variant={compact ? "caption" : "label"}
             style={compact ? { fontSize: 11, lineHeight: 16 } : undefined}
-            color={active === tab.route ? "#C24100" : "#686868"}
+            color={active === tab.route ? colors.primaryDark : colors.muted}
           >
             {tab.label}
           </Text>
@@ -216,7 +267,7 @@ export function MissingTournament() {
         accessibilityRole="link"
         onPress={() => router.replace("/tournaments")}
       >
-        <Text color="#C24100">Voltar aos torneios →</Text>
+        <Text color={colors.primaryDark}>Voltar aos torneios →</Text>
       </Pressable>
     </Panel>
   );
@@ -227,11 +278,12 @@ export const tournamentStyles = StyleSheet.create({
 });
 const s = StyleSheet.create({
   card: {
-    padding: 24,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-    borderRadius: 12,
+    flex: 1,
+    padding: tokens.spacing.lg,
+    backgroundColor: colors.white,
+    borderWidth: tokens.border.thin,
+    borderColor: colors.border,
+    borderRadius: tokens.radius.lg,
   },
   cardTop: {
     flexDirection: "row",
@@ -246,7 +298,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   sport: {
-    backgroundColor: "#F5F5F3",
+    backgroundColor: colors.backgroundSecondary,
     width: 48,
     height: 48,
     alignItems: "center",
@@ -255,7 +307,7 @@ const s = StyleSheet.create({
   },
   cardBottom: {
     borderTopWidth: 1,
-    borderTopColor: "#E5E5E5",
+    borderTopColor: colors.border,
     marginTop: 20,
     paddingTop: 16,
     flexDirection: "row",
@@ -263,10 +315,10 @@ const s = StyleSheet.create({
     gap: 8,
   },
   match: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.white,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E5E5E5",
+    borderColor: colors.border,
     borderRadius: 10,
     gap: 12,
   },
@@ -280,7 +332,7 @@ const s = StyleSheet.create({
   tabs: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5E5",
+    borderBottomColor: colors.border,
     marginBottom: 28,
   },
   tab: {
@@ -291,7 +343,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    borderBottomColor: colors.transparent,
   },
-  activeTab: { borderBottomColor: "#FF6A00" },
+  activeTab: { borderBottomColor: colors.primary },
 });

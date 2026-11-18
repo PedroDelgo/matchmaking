@@ -1,16 +1,15 @@
 import React, { useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View } from "react-native";
 import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import { Text, Button, PageHeading, EmptyState, Field } from "../components/ui";
-import { TournamentCard } from "../components/tournament";
+import { TournamentGrid } from "../components/TournamentGrid";
 import { useAppStore } from "../store/useAppStore";
 import { colors } from "../theme/tokens";
 export function TournamentsScreen() {
   const all = useAppStore((s) => s.tournaments),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState("");
-  const wide = useWindowDimensions().width >= 960;
   const list = all.filter(
     (t) =>
       (filter === "all" || t.status === filter) &&
@@ -44,7 +43,7 @@ export function TournamentsScreen() {
             { id: "all", label: "Todos" },
             { id: "draft", label: "Em preparação" },
             { id: "active", label: "Em andamento" },
-            { id: "completed", label: "Finalizados" },
+            { id: "completed", label: "Concluídos" },
           ].map((f) => (
             <Button
               key={f.id}
@@ -65,13 +64,7 @@ export function TournamentsScreen() {
           >
             {list.length} campeonato{list.length === 1 ? "" : "s"}
           </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 20 }}>
-            {list.map((t) => (
-              <View key={t.id} style={{ width: wide ? "48.8%" : "100%" }}>
-                <TournamentCard tournament={t} />
-              </View>
-            ))}
-          </View>
+          <TournamentGrid tournaments={list} />
         </>
       ) : (
         <EmptyState

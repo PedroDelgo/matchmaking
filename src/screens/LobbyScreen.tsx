@@ -23,7 +23,7 @@ import {
 import { TournamentTabs, MissingTournament } from "../components/tournament";
 import { useAppStore } from "../store/useAppStore";
 import { useReducedMotion } from "../hooks/useReducedMotion";
-import { colors } from "../theme/tokens";
+import { colors, tokens } from "../theme/tokens";
 
 export function LobbyScreen() {
   const { id, created } = useLocalSearchParams<{
@@ -37,7 +37,7 @@ export function LobbyScreen() {
     [removeId, setRemoveId] = useState<string | null>(null),
     [deleting, setDeleting] = useState(false),
     [drawing, setDrawing] = useState(false);
-  const wide = useWindowDimensions().width >= 960,
+  const wide = useWindowDimensions().width >= tokens.breakpoints.desktop,
     reduced = useReducedMotion();
   useEffect(() => {
     if (!drawing) return;
@@ -389,7 +389,7 @@ export function LobbyScreen() {
           >
             O destino da disputa.
           </Text>
-          <Text color="#BFBFBF" style={{ textAlign: "center" }}>
+          <Text color={colors.inverseSecondary} style={{ textAlign: "center" }}>
             Os confrontos estão definidos. Que vença o melhor.
           </Text>
           <ScrollView
@@ -408,7 +408,7 @@ export function LobbyScreen() {
                   }
                   style={{
                     padding: 18,
-                    backgroundColor: "#292929",
+                    backgroundColor: colors.inverseSurface,
                     borderRadius: 8,
                     flexDirection: "row",
                     alignItems: "center",
@@ -423,7 +423,7 @@ export function LobbyScreen() {
                     }
                     style={{ flex: 1 }}
                   >
-                    <Text color="white">
+                    <Text color={colors.white}>
                       {
                         t.participants.find((p) => p.id === m.participant1Id)
                           ?.displayName
@@ -441,7 +441,7 @@ export function LobbyScreen() {
                     }
                     style={{ flex: 1 }}
                   >
-                    <Text color="white" style={{ textAlign: "right" }}>
+                    <Text color={colors.white} style={{ textAlign: "right" }}>
                       {
                         t.participants.find((p) => p.id === m.participant2Id)
                           ?.displayName

@@ -16,7 +16,7 @@ import {
   getRanking,
   getTournamentStats,
 } from "../features/tournaments/engine/tournament";
-import { colors } from "../theme/tokens";
+import { colors, fonts } from "../theme/tokens";
 import { participantLabel } from "../features/tournaments/domain/labels";
 export function StatsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
@@ -89,7 +89,7 @@ export function StatsScreen() {
                     flexDirection: "row",
                     paddingHorizontal: 20,
                     paddingVertical: 14,
-                    backgroundColor: "#EEEEE9",
+                    backgroundColor: colors.backgroundSecondary,
                   }}
                 >
                   <Text variant="label" style={{ width: 40 }}>
@@ -157,8 +157,7 @@ export function StatsScreen() {
                         style={{
                           width: 48,
                           textAlign: "right",
-                          fontFamily:
-                            i === 1 ? "Inter_700Bold" : "Inter_400Regular",
+                          fontFamily: i === 1 ? fonts.bold : fonts.regular,
                         }}
                       >
                         {v}

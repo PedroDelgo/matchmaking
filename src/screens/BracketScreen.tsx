@@ -16,7 +16,7 @@ import {
   MissingTournament,
 } from "../components/tournament";
 import { useAppStore } from "../store/useAppStore";
-import { colors } from "../theme/tokens";
+import { colors, tokens } from "../theme/tokens";
 import type { Tournament } from "../features/tournaments/domain/types";
 
 function FullBracket({ t }: { t: Tournament }) {
@@ -70,7 +70,7 @@ function FullBracket({ t }: { t: Tournament }) {
                             borderTopWidth: 1,
                             borderBottomWidth: 1,
                             borderRightWidth: 1,
-                            borderColor: "#BEBEB7",
+                            borderColor: colors.lineStrong,
                           }}
                         />
                         <View
@@ -81,7 +81,7 @@ function FullBracket({ t }: { t: Tournament }) {
                             top: height,
                             width: 22,
                             height: 1,
-                            backgroundColor: "#BEBEB7",
+                            backgroundColor: colors.lineStrong,
                           }}
                         />
                       </>
@@ -98,7 +98,7 @@ function FullBracket({ t }: { t: Tournament }) {
 export function BracketScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
     t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
-  const wide = useWindowDimensions().width >= 960;
+  const wide = useWindowDimensions().width >= tokens.breakpoints.desktop;
   const [round, setRound] = useState<number | null>(null),
     [overview, setOverview] = useState(false);
   if (!t)

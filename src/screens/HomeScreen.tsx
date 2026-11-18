@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Pressable, useWindowDimensions, Modal } from "react-native";
+import { View, Pressable, Modal } from "react-native";
 import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
@@ -11,10 +11,11 @@ import {
   EmptyState,
 } from "../components/ui";
 import { Motion } from "../components/Motion";
-import { TournamentCard } from "../components/tournament";
+import { TournamentGrid } from "../components/TournamentGrid";
 import { useAppStore } from "../store/useAppStore";
-import { colors } from "../theme/tokens";
+import { colors, fonts, typography } from "../theme/tokens";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 
 function BracketArtwork() {
   return (
@@ -35,7 +36,7 @@ function BracketArtwork() {
           height: 206,
           borderRadius: 103,
           borderWidth: 1,
-          borderColor: "#E6E6DF",
+          borderColor: colors.graphicRing,
         }}
       />
       <View
@@ -45,7 +46,7 @@ function BracketArtwork() {
           height: 264,
           borderRadius: 132,
           borderWidth: 1,
-          borderColor: "#EAEAE5",
+          borderColor: colors.graphicRingOuter,
         }}
       />
       {[-1, 1].map((side) => (
@@ -69,7 +70,7 @@ function BracketArtwork() {
                 width: 70,
                 height: 40,
                 borderRadius: 6,
-                backgroundColor: "#FFFFFF",
+                backgroundColor: colors.white,
                 borderWidth: 1,
                 borderColor: colors.border,
                 alignItems: "center",
@@ -80,7 +81,7 @@ function BracketArtwork() {
                 style={{
                   width: 34,
                   height: 5,
-                  backgroundColor: "#D5D5CE",
+                  backgroundColor: colors.graphicLabel,
                   borderRadius: 2,
                 }}
               />
@@ -97,7 +98,7 @@ function BracketArtwork() {
               borderWidth: 1,
               borderLeftWidth: side === -1 ? 0 : 1,
               borderRightWidth: side === 1 ? 0 : 1,
-              borderColor: "#B8B8AE",
+              borderColor: colors.graphicLine,
             }}
           />
         </View>
@@ -125,7 +126,7 @@ function BracketArtwork() {
           transform: [{ rotate: "-3deg" }],
         }}
       >
-        <Text variant="label" color="#FFFFFF">
+        <Text variant="label" color={colors.white}>
           A resenha vale um troféu.
         </Text>
       </View>
@@ -137,7 +138,7 @@ export function HomeScreen() {
   const tournaments = useAppStore((s) => s.tournaments),
     profile = useAppStore((s) => s.profile);
   const [join, setJoin] = useState(false),
-    wide = useWindowDimensions().width >= 960;
+    { desktop: wide, tablet, compact } = useResponsiveLayout();
   const ongoing = tournaments.filter((t) => t.status === "active").length,
     finished = tournaments.filter((t) => t.status === "completed").length;
   return (
@@ -172,7 +173,7 @@ export function HomeScreen() {
         <View
           style={{
             flexDirection: wide ? "row" : "column",
-            backgroundColor: "#EEEEE9",
+            backgroundColor: colors.backgroundSecondary,
             borderRadius: 16,
             overflow: "hidden",
             padding: wide ? 44 : 24,
@@ -195,7 +196,14 @@ export function HomeScreen() {
             </View>
             <Text
               variant="display"
-              style={{ fontSize: wide ? 88 : 58, lineHeight: wide ? 88 : 62 }}
+              accessibilityRole="header"
+              style={
+                wide
+                  ? typography.hero.desktop
+                  : tablet
+                    ? typography.hero.tablet
+                    : typography.hero.mobile
+              }
             >
               Bora competir?
             </Text>
@@ -219,6 +227,8 @@ export function HomeScreen() {
             >
               <Button
                 label="Criar campeonato"
+                size="large"
+                style={compact ? { alignSelf: "stretch" } : undefined}
                 icon="add"
                 onPress={() => router.push("/tournament/create")}
               />
@@ -255,7 +265,7 @@ export function HomeScreen() {
           { n: ongoing, label: "Em andamento", icon: "flash-outline" as const },
           {
             n: finished,
-            label: "Finalizados",
+            label: "Concluídos",
             icon: "checkmark-circle-outline" as const,
           },
         ].map((stat, i) => (
@@ -289,13 +299,7 @@ export function HomeScreen() {
             onAction={() => router.navigate("/tournaments")}
           />
           {tournaments.length ? (
-            <View style={{ gap: 16 }}>
-              {tournaments.slice(0, 3).map((t, i) => (
-                <Motion key={t.id} delay={i * 50}>
-                  <TournamentCard tournament={t} />
-                </Motion>
-              ))}
-            </View>
+            <TournamentGrid tournaments={tournaments.slice(0, 3)} />
           ) : (
             <EmptyState
               title="Seu primeiro campeonato começa aqui."
@@ -305,55 +309,59 @@ export function HomeScreen() {
             />
           )}
         </View>
-        <View style={{ width: wide ? 320 : undefined, gap: 20 }}>
-          <Text variant="title" style={{ marginBottom: -2 }}>
-            Da ideia ao pódio
-          </Text>
-          <Panel style={{ gap: 24 }}>
-            {[
-              {
-                n: "01",
-                title: "Escolha a disputa",
-                text: "Do futebol ao truco. A modalidade é sua.",
-              },
-              {
-                n: "02",
-                title: "Reúna os amigos",
-                text: "Adicione 4, 8 ou 16 participantes.",
-              },
-              {
-                n: "03",
-                title: "Que vença o melhor",
-                text: "Sorteie, registre os placares e celebre.",
-              },
-            ].map((item) => (
-              <View key={item.n} style={{ flexDirection: "row", gap: 14 }}>
-                <Text
-                  variant="title"
-                  color={colors.primaryDark}
-                  style={{ fontSize: 27 }}
-                >
-                  {item.n}
-                </Text>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>
-                    {item.title}
-                  </Text>
-                  <Text variant="caption" color={colors.muted}>
-                    {item.text}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </Panel>
-          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4 }}>
-            <Icon name="phone-portrait-outline" color={colors.muted} />
-            <Text variant="caption" color={colors.muted} style={{ flex: 1 }}>
-              Seus campeonatos ficam neste dispositivo. Prontos para a próxima
-              resenha.
+        {!tournaments.length && (
+          <View style={{ width: wide ? 320 : undefined, gap: 20 }}>
+            <Text variant="title" style={{ marginBottom: -2 }}>
+              Da ideia ao pódio
             </Text>
+            <Panel style={{ gap: 24 }}>
+              {[
+                {
+                  n: "01",
+                  title: "Escolha a disputa",
+                  text: "Do futebol ao truco. A modalidade é sua.",
+                },
+                {
+                  n: "02",
+                  title: "Reúna os amigos",
+                  text: "Adicione 4, 8 ou 16 participantes.",
+                },
+                {
+                  n: "03",
+                  title: "Que vença o melhor",
+                  text: "Sorteie, registre os placares e celebre.",
+                },
+              ].map((item) => (
+                <View key={item.n} style={{ flexDirection: "row", gap: 14 }}>
+                  <Text
+                    variant="title"
+                    color={colors.primaryDark}
+                    style={{ fontSize: 27 }}
+                  >
+                    {item.n}
+                  </Text>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ fontFamily: fonts.semibold }}>
+                      {item.title}
+                    </Text>
+                    <Text variant="caption" color={colors.muted}>
+                      {item.text}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </Panel>
+            <View
+              style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4 }}
+            >
+              <Icon name="phone-portrait-outline" color={colors.muted} />
+              <Text variant="caption" color={colors.muted} style={{ flex: 1 }}>
+                Seus campeonatos ficam neste dispositivo. Prontos para a próxima
+                resenha.
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
       </View>
       <View
         style={{
@@ -410,7 +418,7 @@ export function HomeScreen() {
         <View
           style={{
             flex: 1,
-            backgroundColor: "rgba(15,15,15,0.6)",
+            backgroundColor: colors.overlay,
             alignItems: "center",
             justifyContent: "center",
             padding: 20,

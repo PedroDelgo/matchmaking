@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View } from "react-native";
 import { Shell } from "../components/Shell";
 import {
   Text,
@@ -14,6 +14,8 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { getRanking } from "../features/tournaments/engine/tournament";
 import { colors } from "../theme/tokens";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { expo } from "../../app.json";
 export function ProfileScreen() {
   const profile = useAppStore((s) => s.profile),
     tournaments = useAppStore((s) => s.tournaments),
@@ -21,7 +23,7 @@ export function ProfileScreen() {
   const [name, setName] = useState(profile.nickname),
     [error, setError] = useState(""),
     [saved, setSaved] = useState(false);
-  const wide = useWindowDimensions().width >= 960;
+  const { tablet: wide } = useResponsiveLayout();
   const associated = tournaments.filter((t) =>
     t.participants.some((p) => p.profileId === profile.id),
   );
@@ -118,12 +120,13 @@ export function ProfileScreen() {
                 gap: 12,
               }}
             >
-              <Text variant="heading">Uma rivalidade que continua</Text>
-              <Chip label="Em breve" />
+              <Text variant="heading">Sobre sua arena</Text>
+              <Chip label={`v${expo.version}`} />
             </View>
             <Text color={colors.muted}>
-              Amigos, conquistas e temporadas vão chegar. Nesta versão, sua
-              arena fica salva neste dispositivo, sem login ou sincronização.
+              O Matchmaking organiza disputas entre amigos. Seus campeonatos e
+              este perfil ficam neste dispositivo, sem login ou sincronização.
+              Limpar os dados do aplicativo pode apagar esse histórico.
             </Text>
           </Panel>
         </View>

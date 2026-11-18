@@ -52,7 +52,7 @@ function Confetti({ index }: { index: number }) {
           left: `${(index * 37) % 100}%`,
           width: 6,
           height: 13,
-          backgroundColor: index % 3 === 0 ? "#FFFFFF" : colors.primary,
+          backgroundColor: index % 3 === 0 ? colors.white : colors.primary,
           opacity: 0.8,
         },
         style,
@@ -133,7 +133,7 @@ export function ChampionScreen() {
           </Text>
           <Text
             variant="display"
-            color="white"
+            color={colors.white}
             style={{
               fontSize: wide ? 64 : 44,
               lineHeight: wide ? 70 : 50,
@@ -142,7 +142,7 @@ export function ChampionScreen() {
           >
             {champion.displayName}
           </Text>
-          <Text color="#CBCBCB" style={{ textAlign: "center" }}>
+          <Text color={colors.inverseMuted} style={{ textAlign: "center" }}>
             {t.name} · {t.modality}
           </Text>
         </Animated.View>
@@ -153,7 +153,7 @@ export function ChampionScreen() {
             paddingVertical: 24,
             borderTopWidth: 1,
             borderBottomWidth: 1,
-            borderColor: "#3A3A3A",
+            borderColor: colors.inverseBorder,
             width: "100%",
             maxWidth: 500,
             justifyContent: "center",
@@ -170,18 +170,21 @@ export function ChampionScreen() {
             <View key={item.label} style={{ alignItems: "center", gap: 4 }}>
               <Text
                 variant="title"
-                color="white"
+                color={colors.white}
                 style={{ fontSize: 36, lineHeight: 40 }}
               >
                 {item.n}
               </Text>
-              <Text variant="caption" color="#CBCBCB">
+              <Text variant="caption" color={colors.inverseMuted}>
                 {item.label}
               </Text>
             </View>
           ))}
         </View>
-        <Text color="#CBCBCB" style={{ textAlign: "center", maxWidth: 420 }}>
+        <Text
+          color={colors.inverseMuted}
+          style={{ textAlign: "center", maxWidth: 420 }}
+        >
           A disputa acaba. A história fica. Até o próximo campeonato!
         </Text>
         <View style={{ gap: 12, width: "100%", maxWidth: 360 }}>
@@ -209,7 +212,7 @@ export function ChampionScreen() {
           <Button
             label="Ver todos os resultados"
             variant="outline"
-            style={{ backgroundColor: "white" }}
+            style={{ backgroundColor: colors.white }}
             onPress={() => router.replace(`/tournament/${id}/bracket`)}
           />
         </View>

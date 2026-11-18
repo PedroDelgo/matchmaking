@@ -16,7 +16,7 @@ import {
 import { Motion } from "../components/Motion";
 import { useAppStore } from "../store/useAppStore";
 import { modalityIcon } from "../components/tournament";
-import { colors } from "../theme/tokens";
+import { colors, fonts, tokens } from "../theme/tokens";
 
 export function CreateScreen() {
   const draft = useAppStore((s) => s.draft),
@@ -26,7 +26,7 @@ export function CreateScreen() {
   const [error, setError] = useState(""),
     [discard, setDiscard] = useState(false),
     [busy, setBusy] = useState(false);
-  const wide = useWindowDimensions().width >= 960;
+  const wide = useWindowDimensions().width >= tokens.breakpoints.desktop;
   const validate = () => {
     if (!draft.name.trim()) return "Dê um nome ao campeonato.";
     if (draft.modality === "Outro" && !draft.customModality.trim())
@@ -156,6 +156,7 @@ export function CreateScreen() {
                       accessibilityState={{
                         checked: draft.modality === modality,
                       }}
+                      aria-checked={draft.modality === modality}
                       onPress={() => {
                         update({ modality });
                         setError("");
@@ -336,7 +337,7 @@ export function CreateScreen() {
                   }}
                 >
                   <Text color={colors.muted}>{a}</Text>
-                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>{b}</Text>
+                  <Text style={{ fontFamily: fonts.semibold }}>{b}</Text>
                 </View>
               ))}
               <Notice message="O campeonato será salvo neste dispositivo. Você poderá adicionar os participantes na próxima tela." />

@@ -15,6 +15,7 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("../../src/hooks/useReducedMotion", () => ({
   useReducedMotion: () => true,
+  useMotionPreference: () => ({ ready: true, reduced: true }),
 }));
 jest.mock("../../src/utils/share", () => ({ shareText: jest.fn() }));
 

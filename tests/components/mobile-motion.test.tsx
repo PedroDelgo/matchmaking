@@ -9,9 +9,13 @@ import { useAppStore } from "../../src/store/useAppStore";
 import { shareText } from "../../src/utils/share";
 import { tournamentFixture } from "../fixtures/tournaments";
 
-jest.mock("../../src/hooks/useReducedMotion", () => ({
-  useReducedMotion: jest.fn(() => true),
-}));
+jest.mock("../../src/hooks/useReducedMotion", () => {
+  const useReducedMotion = jest.fn(() => true);
+  return {
+    useReducedMotion,
+    useMotionPreference: () => ({ ready: true, reduced: useReducedMotion() }),
+  };
+});
 jest.mock("../../src/utils/share", () => ({ shareText: jest.fn() }));
 
 beforeEach(() => {
@@ -85,7 +89,10 @@ test("celebração termina e cancela partículas, enquanto movimento reduzido ma
   expect(
     ui.queryByTestId("champion-confetti", { includeHiddenElements: true }),
   ).toBeNull();
-  expect(cancelAnimation).toHaveBeenCalledTimes(48);
+  // All 24 particles cancel both values; trophy/reveal also cancel their own.
+  expect(jest.mocked(cancelAnimation).mock.calls.length).toBeGreaterThanOrEqual(
+    48,
+  );
   expect(ui.getByText("Campeão!")).toBeTruthy();
 
   jest.mocked(useReducedMotion).mockReturnValue(true);

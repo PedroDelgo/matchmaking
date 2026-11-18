@@ -1,0 +1,38 @@
+export const colors = {
+  primary: "#FF6A00",
+  primaryDark: "#C24100",
+  primaryLight: "#F9A15A",
+  primarySoft: "#FFF1E7",
+  background: "#F5F5F3",
+  surface: "#FFFFFF",
+  surfaceDark: "#191919",
+  ink: "#191919",
+  text: "#191919",
+  muted: "#686868",
+  subtle: "#777777",
+  border: "#E5E5E5",
+  success: "#24623B",
+  successSoft: "#EDF5EF",
+  danger: "#B42D24",
+  dangerSoft: "#FFF0EE",
+  white: "#FFFFFF",
+} as const;
+export const fonts = {
+  display: "BarlowCondensed_800ExtraBold",
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  bold: "Inter_700Bold",
+} as const;
+export const tokens = {
+  colors,
+  fonts,
+  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
+  radius: { sm: 6, md: 8, lg: 12 },
+  motion: { press: 180, transition: 300, draw: 2600 },
+  icon: { sm: 16, md: 20, lg: 28 },
+  shadow: { opacity: 0.04, radius: 8 },
+  dimensions: { touch: 44, header: 84 },
+  maxWidth: 1260,
+  desktopBreakpoint: 960,
+} as const;

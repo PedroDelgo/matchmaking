@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Matchmaking",
+    "slug": "matchmaking",
+    "version": "1.0.0",
+    "scheme": "matchmaking",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router", "expo-font", "expo-status-bar"],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Matchmaking"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.matchmaking.local"
+    },
+    "android": {
+      "package": "app.matchmaking.local"
+    }
+  }
+}

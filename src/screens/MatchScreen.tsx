@@ -1,0 +1,386 @@
+import React, { useState } from "react";
+import { View, TextInput, useWindowDimensions } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { Shell } from "../components/Shell";
+import {
+  Text,
+  Button,
+  Panel,
+  Avatar,
+  PageHeading,
+  Notice,
+  ConfirmDialog,
+  EmptyState,
+} from "../components/ui";
+import { useAppStore } from "../store/useAppStore";
+import { colors, fonts } from "../theme/tokens";
+import { participantLabel } from "../features/tournaments/domain/labels";
+
+function ScoreControl({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const number = Number(value),
+    change = (d: number) =>
+      onChange(
+        String(
+          Math.max(
+            0,
+            Math.min(999999, (Number.isFinite(number) ? number : 0) + d),
+          ),
+        ),
+      );
+  return (
+    <View style={{ gap: 22, alignItems: "center", flex: 1, minWidth: 0 }}>
+      <Avatar name={name} size={64} />
+      <Text variant="heading" style={{ textAlign: "center" }}>
+        {name}
+      </Text>
+      <TextInput
+        accessibilityLabel={`Placar de ${name}`}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        value={value}
+        onChangeText={onChange}
+        maxLength={6}
+        selectTextOnFocus
+        style={{
+          width: 112,
+          textAlign: "center",
+          fontFamily: fonts.display,
+          fontSize: 72,
+          lineHeight: 84,
+          color: colors.ink,
+          borderBottomWidth: 2,
+          borderBottomColor: colors.border,
+          padding: 8,
+        }}
+      />
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <Button
+          label="−"
+          accessibilityLabel={`Diminuir pontos de ${name}`}
+          variant="outline"
+          disabled={number <= 0}
+          onPress={() => change(-1)}
+          style={{ minWidth: 48 }}
+        />
+        <Button
+          label="+"
+          accessibilityLabel={`Aumentar pontos de ${name}`}
+          variant="outline"
+          onPress={() => change(1)}
+          style={{ minWidth: 48 }}
+        />
+      </View>
+    </View>
+  );
+}
+export function MatchScreen() {
+  const { id, tournamentId } = useLocalSearchParams<{
+    id: string;
+    tournamentId: string;
+  }>();
+  const t = useAppStore((s) =>
+      s.tournaments.find(
+        (t) => t.id === tournamentId || t.matches.some((m) => m.id === id),
+      ),
+    ),
+    m = t?.matches.find((m) => m.id === id);
+  const [a, setA] = useState(String(m?.score1 ?? 0)),
+    [b, setB] = useState(String(m?.score2 ?? 0)),
+    [tie, setTie] = useState<string | undefined>(
+      m?.score1 === m?.score2 ? (m?.winnerId ?? undefined) : undefined,
+    ),
+    [error, setError] = useState(""),
+    [confirm, setConfirm] = useState(false),
+    [editing, setEditing] = useState(false),
+    [saved, setSaved] = useState(false);
+  const wide = useWindowDimensions().width >= 700;
+  if (!t || !m)
+    return (
+      <Shell>
+        <EmptyState
+          title="Essa partida não está disponível."
+          description="Ela pode ter sido removida ou o campeonato não existe neste dispositivo."
+          actionLabel="Ver meus torneios"
+          onAction={() => router.replace("/tournaments")}
+        />
+      </Shell>
+    );
+  const p1 = t.participants.find((p) => p.id === m.participant1Id),
+    p2 = t.participants.find((p) => p.id === m.participant2Id);
+  const locked = m.status === "completed" && !editing;
+  const hasDownstream = (() => {
+    let next = m.nextMatchId;
+    while (next) {
+      const match = t.matches.find((m) => m.id === next);
+      if (match?.winnerId) return true;
+      next = match?.nextMatchId ?? null;
+    }
+    return false;
+  })();
+  const predicted =
+    Number(a) === Number(b)
+      ? tie
+      : Number(a) > Number(b)
+        ? m.participant1Id
+        : m.participant2Id;
+  const changedWinner = !!m.winnerId && predicted !== m.winnerId;
+  const validate = () => {
+    if (
+      !/^\d+$/.test(a) ||
+      !/^\d+$/.test(b) ||
+      !Number.isSafeInteger(Number(a)) ||
+      !Number.isSafeInteger(Number(b))
+    )
+      return "Use placares inteiros não negativos.";
+    if (Number(a) === Number(b) && !tie)
+      return "Selecione quem venceu o desempate.";
+    return "";
+  };
+  const save = () => {
+    try {
+      useAppStore
+        .getState()
+        .score(
+          t.id,
+          m.id,
+          Number(a),
+          Number(b),
+          Number(a) === Number(b) ? tie : undefined,
+        );
+      setConfirm(false);
+      setEditing(false);
+      setError("");
+      setSaved(true);
+      const updated = useAppStore
+        .getState()
+        .tournaments.find((x) => x.id === t.id)!;
+      if (
+        updated.status === "completed" &&
+        m.roundIndex === t.rounds.length - 1
+      )
+        router.replace(`/tournament/${t.id}/champion`);
+    } catch (e) {
+      setError((e as Error).message);
+      setConfirm(false);
+    }
+  };
+  return (
+    <Shell>
+      <View style={{ maxWidth: 820, width: "100%", alignSelf: "center" }}>
+        <Button
+          label="Voltar ao chaveamento"
+          variant="ghost"
+          icon="arrow-back"
+          style={{ alignSelf: "flex-start", marginBottom: 20 }}
+          onPress={() => router.replace(`/tournament/${t.id}/bracket`)}
+        />
+        <PageHeading
+          eyebrow={`${t.name} / ${t.rounds[m.roundIndex]?.label}`}
+          title={`Confronto ${m.positionIndex + 1}`}
+          description={
+            locked
+              ? "Resultado registrado. Revise os números ou acompanhe a próxima rodada."
+              : "Aqui, cada ponto muda a história."
+          }
+        />
+        {!p1 || !p2 ? (
+          <EmptyState
+            title="Os rivais ainda estão a caminho."
+            description="Conclua as partidas anteriores para definir este confronto."
+            actionLabel="Ver chaveamento"
+            onAction={() => router.replace(`/tournament/${t.id}/bracket`)}
+          />
+        ) : (
+          <>
+            <Panel style={{ padding: wide ? 36 : 16, gap: 28 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: wide ? 24 : 4,
+                  alignItems: "center",
+                }}
+              >
+                {locked ? (
+                  <>
+                    <View style={{ flex: 1, gap: 20, alignItems: "center" }}>
+                      <Avatar name={participantLabel(t, p1.id)} size={64} />
+                      <Text variant="heading" style={{ textAlign: "center" }}>
+                        {participantLabel(t, p1.id)}
+                      </Text>
+                      <Text
+                        variant="display"
+                        style={{ fontSize: 76, lineHeight: 84 }}
+                      >
+                        {m.score1}
+                      </Text>
+                    </View>
+                    <Text variant="title" color={colors.muted}>
+                      ×
+                    </Text>
+                    <View style={{ flex: 1, gap: 20, alignItems: "center" }}>
+                      <Avatar name={participantLabel(t, p2.id)} size={64} />
+                      <Text variant="heading" style={{ textAlign: "center" }}>
+                        {participantLabel(t, p2.id)}
+                      </Text>
+                      <Text
+                        variant="display"
+                        style={{ fontSize: 76, lineHeight: 84 }}
+                      >
+                        {m.score2}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <ScoreControl
+                      name={participantLabel(t, p1.id)}
+                      value={a}
+                      onChange={(v) => {
+                        setA(v);
+                        setError("");
+                        setSaved(false);
+                      }}
+                    />
+                    <Text variant="title" color={colors.muted}>
+                      ×
+                    </Text>
+                    <ScoreControl
+                      name={participantLabel(t, p2.id)}
+                      value={b}
+                      onChange={(v) => {
+                        setB(v);
+                        setError("");
+                        setSaved(false);
+                      }}
+                    />
+                  </>
+                )}
+              </View>
+              {!locked && Number(a) === Number(b) && (
+                <View
+                  style={{
+                    gap: 12,
+                    borderTopWidth: 1,
+                    borderTopColor: colors.border,
+                    paddingTop: 24,
+                  }}
+                >
+                  <Text variant="heading">Quem venceu o desempate?</Text>
+                  <Text color={colors.muted}>
+                    Resolva o desempate conforme a regra do seu jogo e escolha
+                    quem avança.
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    {[p1, p2].map((p) => (
+                      <Button
+                        key={p.id}
+                        label={`${tie === p.id ? "✓ " : ""}${participantLabel(t, p.id)}`}
+                        variant={tie === p.id ? "primary" : "outline"}
+                        accessibilityState={{ selected: tie === p.id }}
+                        onPress={() => setTie(p.id)}
+                        style={{ flex: 1 }}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+              {locked ? (
+                <Notice
+                  tone="success"
+                  message={`${participantLabel(t, m.winnerId)} venceu${m.score1 === m.score2 ? " no desempate" : ""}.`}
+                />
+              ) : null}
+              {error && <Notice tone="error" message={error} />}
+              {saved && (
+                <Notice
+                  tone="success"
+                  message="Resultado salvo. O chaveamento e as estatísticas foram atualizados."
+                />
+              )}
+              {locked ? (
+                <View style={{ gap: 12 }}>
+                  <Button
+                    label="Continuar no chaveamento"
+                    icon="arrow-forward"
+                    onPress={() =>
+                      router.replace(`/tournament/${t.id}/bracket`)
+                    }
+                  />
+                  <Button
+                    label="Corrigir resultado"
+                    variant="outline"
+                    onPress={() => {
+                      setA(String(m.score1));
+                      setB(String(m.score2));
+                      setTie(
+                        m.score1 === m.score2
+                          ? (m.winnerId ?? undefined)
+                          : undefined,
+                      );
+                      setEditing(true);
+                      setSaved(false);
+                    }}
+                  />
+                </View>
+              ) : (
+                <>
+                  <Button
+                    label="Confirmar resultado"
+                    icon="checkmark"
+                    onPress={() => {
+                      const e = validate();
+                      setError(e);
+                      if (!e) setConfirm(true);
+                    }}
+                  />
+                  {editing && (
+                    <Button
+                      label="Cancelar edição"
+                      variant="ghost"
+                      onPress={() => {
+                        setEditing(false);
+                        setError("");
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </Panel>
+            <Text
+              variant="caption"
+              color={colors.muted}
+              style={{ marginTop: 16, textAlign: "center" }}
+            >
+              Placar local. Nenhum resultado é publicado automaticamente.
+            </Text>
+          </>
+        )}
+        <ConfirmDialog
+          visible={confirm}
+          title={
+            hasDownstream && changedWinner
+              ? "A chave vai mudar"
+              : "Confirmar resultado?"
+          }
+          description={`${participantLabel(t, p1?.id)} ${a} × ${b} ${participantLabel(t, p2?.id)}.${Number(a) === Number(b) ? ` Vencedor do desempate: ${participantLabel(t, tie)}.` : ""}${hasDownstream && changedWinner ? " A troca do vencedor apagará os resultados posteriores que dependem deste confronto e poderá remover o campeão." : ""}`}
+          confirmLabel={
+            hasDownstream && changedWinner
+              ? "Confirmar e atualizar chave"
+              : "Salvar resultado"
+          }
+          destructive={hasDownstream && changedWinner}
+          onCancel={() => setConfirm(false)}
+          onConfirm={save}
+        />
+      </View>
+    </Shell>
+  );
+}

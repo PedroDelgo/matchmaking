@@ -234,9 +234,23 @@ export function validatePersisted(v: unknown): v is Persisted {
   });
 }
 
+const storageVersion = 1;
 let storageBlocked = false;
 const guardedStorage: StateStorage = {
-  getItem: (key) => localStorageAdapter.getItem(key),
+  getItem: async (key) => {
+    const raw = await localStorageAdapter.getItem(key);
+    if (raw === null) return null;
+    // Zustand treats a missing state in valid JSON as empty storage. Validate
+    // the envelope first so hydration cannot overwrite the original contents.
+    const envelope: unknown = JSON.parse(raw);
+    if (
+      !isObject(envelope) ||
+      envelope.version !== storageVersion ||
+      !validatePersisted(envelope.state)
+    )
+      throw new Error("Dados locais inválidos ou incompatíveis.");
+    return raw;
+  },
   setItem: async (key, value) => {
     if (storageBlocked) return;
     try {
@@ -337,7 +351,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "matchmaking-local-v1",
-      version: 1,
+      version: storageVersion,
       skipHydration: true,
       storage: createJSONStorage(() => guardedStorage),
       partialize: (s) => ({
@@ -352,7 +366,12 @@ export const useAppStore = create<AppState>()(
         if (persisted === undefined) return current;
         if (!validatePersisted(persisted))
           throw new Error("Dados locais inválidos.");
-        return { ...current, ...persisted };
+        return {
+          ...current,
+          tournaments: persisted.tournaments,
+          profile: persisted.profile,
+          draft: persisted.draft,
+        };
       },
       onRehydrateStorage: () => (_state, error) => {
         // Defer so a failed read does not replace the original data during hydration.

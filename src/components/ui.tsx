@@ -1,9 +1,10 @@
-import React, { type ReactNode, useState } from "react";
+import React, { type ReactNode, useId, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
   Pressable,
   type PressableProps,
+  type PressableStateCallbackType,
   StyleSheet,
   Text as NativeText,
   TextInput,
@@ -14,47 +15,47 @@ import {
   View,
   type ViewProps,
   type ViewStyle,
-  useWindowDimensions,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { colors, fonts } from "../theme/tokens";
+import { colors, fonts, tokens, typography } from "../theme/tokens";
+import { useBrandFonts } from "../theme/FontContext";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 export type IconName = keyof typeof Ionicons.glyphMap;
 type Variant = "display" | "title" | "heading" | "body" | "label" | "caption";
 type Tone =
   "neutral" | "info" | "orange" | "success" | "warning" | "danger" | "error";
-const textStyles: Record<Variant, TextStyle> = {
-  display: {
-    fontFamily: fonts.display,
-    fontSize: 52,
-    lineHeight: 54,
-    textTransform: "uppercase",
-  },
-  title: {
-    fontFamily: fonts.display,
-    fontSize: 32,
-    lineHeight: 36,
-    textTransform: "uppercase",
-  },
-  heading: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 26 },
-  body: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 23 },
-  label: {
-    fontFamily: fonts.semibold,
-    fontSize: 11,
-    lineHeight: 17,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  caption: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 19 },
-};
+const textStyles: Record<Variant, TextStyle> = typography;
 export function Text({
   variant = "body",
   color = colors.ink,
   style,
   ...props
 }: TextProps & { variant?: Variant; color?: string }) {
+  const brandFonts = useBrandFonts();
   return (
-    <NativeText {...props} style={[textStyles[variant], { color }, style]} />
+    <NativeText
+      {...props}
+      style={[
+        textStyles[variant],
+        { color },
+        style,
+        !brandFonts && {
+          fontFamily: undefined,
+          fontWeight:
+            variant === "display" ||
+            variant === "title" ||
+            variant === "heading"
+              ? "800"
+              : "400",
+        },
+      ]}
+    />
   );
 }
 export function Icon({
@@ -80,7 +81,9 @@ export function Icon({
 }
 type ButtonProps = Omit<PressableProps, "children" | "style"> & {
   label: string;
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  variant?:
+    "primary" | "secondary" | "outline" | "ghost" | "danger" | "destructive";
+  size?: "normal" | "large";
   icon?: IconName;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -92,32 +95,70 @@ export function Button({
   loading,
   disabled,
   style,
+  size = "normal",
   ...props
 }: ButtonProps) {
   const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.get() }],
+  }));
+  const unavailable = !!disabled || !!loading;
+  const destructive = variant === "danger" || variant === "destructive";
   const bg =
     variant === "primary"
       ? colors.primary
       : variant === "secondary"
         ? colors.ink
-        : variant === "danger"
+        : destructive
           ? colors.danger
-          : "transparent";
-  const fg =
-    variant === "secondary" || variant === "danger" ? colors.white : colors.ink;
+          : colors.transparent;
+  const fg = variant === "secondary" || destructive ? colors.white : colors.ink;
   return (
-    <Pressable
+    <AnimatedPressable
       {...props}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onFocus={(event) => {
+        setFocused(true);
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        props.onBlur?.(event);
+      }}
+      onHoverIn={(event) => {
+        setHovered(true);
+        props.onHoverIn?.(event);
+      }}
+      onHoverOut={(event) => {
+        setHovered(false);
+        props.onHoverOut?.(event);
+      }}
+      onPressIn={(event) => {
+        if (!reduced && !unavailable)
+          scale.set(
+            withTiming(tokens.interaction.pressedScale, {
+              duration: tokens.motion.press,
+            }),
+          );
+        props.onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        scale.set(
+          reduced ? 1 : withTiming(1, { duration: tokens.motion.press }),
+        );
+        props.onPressOut?.(event);
+      }}
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel ?? label}
       accessibilityState={{
-        disabled: !!disabled || !!loading,
+        ...props.accessibilityState,
+        disabled: unavailable,
         busy: !!loading,
       }}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      style={({ pressed }: PressableStateCallbackType) => [
         s.button,
         {
           backgroundColor: bg,
@@ -127,9 +168,15 @@ export function Button({
               ? colors.border
               : bg,
         },
-        pressed && { opacity: 0.75, transform: [{ scale: 0.985 }] },
-        (disabled || loading) && { opacity: 0.42 },
+        hovered && !unavailable && { opacity: 0.9 },
+        pressed && { opacity: tokens.interaction.pressedOpacity },
+        unavailable && { opacity: tokens.interaction.disabledOpacity },
+        size === "large" && {
+          minHeight: tokens.dimensions.buttonLarge,
+          paddingHorizontal: tokens.spacing.lg,
+        },
         style,
+        animatedStyle,
       ]}
     >
       {loading ? (
@@ -137,17 +184,69 @@ export function Button({
       ) : (
         icon && <Icon name={icon} size={18} color={fg} />
       )}
-      <Text
-        color={fg}
-        style={{ fontFamily: fonts.semibold, fontSize: 13, lineHeight: 21 }}
-      >
+      <Text color={fg} style={typography.button}>
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function Panel({ style, ...props }: ViewProps) {
   return <View {...props} style={[s.panel, style]} />;
+}
+export function InteractiveCard({
+  children,
+  style,
+  selected,
+  ...props
+}: Omit<PressableProps, "children" | "style"> & {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  selected?: boolean;
+}) {
+  const [focused, setFocused] = useState(false),
+    [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      {...props}
+      accessibilityRole={props.accessibilityRole ?? "button"}
+      accessibilityState={{ ...props.accessibilityState, selected }}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
+      onHoverIn={(e) => {
+        setHovered(true);
+        props.onHoverIn?.(e);
+      }}
+      onHoverOut={(e) => {
+        setHovered(false);
+        props.onHoverOut?.(e);
+      }}
+      style={({ pressed }) => [
+        s.panel,
+        { minHeight: tokens.dimensions.touch },
+        style,
+        selected && {
+          borderColor: colors.primary,
+          backgroundColor: colors.primarySoft,
+        },
+        hovered && !props.disabled && { borderColor: colors.lineStrong },
+        focused && {
+          borderColor: colors.primaryDark,
+          borderWidth: tokens.border.focus,
+        },
+        pressed && { opacity: tokens.interaction.pressedOpacity },
+        props.disabled && { opacity: tokens.interaction.disabledOpacity },
+      ]}
+    >
+      {children}
+    </Pressable>
+  );
 }
 export function Field({
   label,
@@ -163,14 +262,29 @@ export function Field({
   containerStyle?: StyleProp<ViewStyle>;
 }) {
   const [focus, setFocus] = useState(false);
+  const brandFonts = useBrandFonts(),
+    hintId = useId();
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   return (
     <View style={[{ gap: 8, minWidth: 0 }, containerStyle]}>
-      <Text variant="label">{label}</Text>
+      <Text variant="label" onPress={() => inputRef.current?.focus()}>
+        {label}
+      </Text>
       <TextInput
         {...props}
+        ref={inputRef}
         accessibilityLabel={props.accessibilityLabel ?? label}
-        onFocus={() => setFocus(true)}
-        onBlur={() => setFocus(false)}
+        onFocus={(event) => {
+          setFocus(true);
+          props.onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocus(false);
+          props.onBlur?.(event);
+        }}
+        aria-disabled={props.editable === false}
+        aria-describedby={error || helper ? hintId : undefined}
+        aria-invalid={!!error}
         placeholderTextColor={colors.subtle}
         selectionColor={colors.primary}
         style={[
@@ -183,14 +297,24 @@ export function Field({
                 : colors.border,
           },
           style,
+          props.editable === false && {
+            backgroundColor: colors.backgroundSecondary,
+            color: colors.muted,
+          },
+          !brandFonts && { fontFamily: undefined },
         ]}
       />
       {error ? (
-        <Text variant="caption" color={colors.danger} accessibilityRole="alert">
+        <Text
+          nativeID={hintId}
+          variant="caption"
+          color={colors.danger}
+          accessibilityRole="alert"
+        >
           {error}
         </Text>
       ) : helper ? (
-        <Text variant="caption" color={colors.muted}>
+        <Text nativeID={hintId} variant="caption" color={colors.muted}>
           {helper}
         </Text>
       ) : null}
@@ -203,7 +327,7 @@ function tone(t: Tone) {
     : t === "success"
       ? { bg: colors.successSoft, fg: colors.success }
       : t === "neutral"
-        ? { bg: colors.background, fg: colors.muted }
+        ? { bg: colors.backgroundSecondary, fg: colors.muted }
         : { bg: colors.primarySoft, fg: colors.primaryDark };
 }
 export function Chip({
@@ -246,7 +370,7 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: "#EEEEEB",
+        backgroundColor: colors.avatar,
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -263,11 +387,21 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
     </View>
   );
 }
-export function Progress({ value }: { value: number }) {
-  const v = Math.min(1, Math.max(0, value));
+export function Progress({
+  value,
+  color = colors.primary,
+  label,
+}: {
+  value: number;
+  color?: string;
+  label?: string;
+}) {
+  const v = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
   return (
     <View
+      accessible
       accessibilityRole="progressbar"
+      accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(v * 100) }}
       style={{
         height: 5,
@@ -280,7 +414,7 @@ export function Progress({ value }: { value: number }) {
         style={{
           height: "100%",
           width: `${v * 100}%`,
-          backgroundColor: colors.primary,
+          backgroundColor: color,
         }}
       />
     </View>
@@ -296,7 +430,9 @@ export function Notice({
   const p = tone(t);
   return (
     <View
+      accessible
       accessibilityRole={t === "error" ? "alert" : undefined}
+      accessibilityLiveRegion={t==='error'?'assertive':'polite'}
       style={{
         backgroundColor: p.bg,
         flexDirection: "row",
@@ -332,7 +468,7 @@ export function PageHeading({
   description?: string;
   action?: ReactNode;
 }) {
-  const wide = useWindowDimensions().width >= 960;
+  const { desktop: wide } = useResponsiveLayout();
   return (
     <View
       style={{
@@ -351,7 +487,7 @@ export function PageHeading({
         <Text
           accessibilityRole="header"
           variant="display"
-          style={{ fontSize: wide ? 58 : 42, lineHeight: wide ? 62 : 46 }}
+          style={wide ? typography.page.desktop : typography.page.mobile}
         >
           {title}
         </Text>
@@ -376,16 +512,17 @@ export function SectionTitle({
   action?: string;
   onAction?: () => void;
 }) {
+  const { compact } = useResponsiveLayout();
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "center",
+        flexDirection: compact ? "column" : "row",
+        alignItems: compact ? "flex-start" : "center",
         gap: 12,
         marginBottom: 18,
       }}
     >
-      <View style={{ flex: 1, gap: 4 }}>
+      <View style={{ flex: compact ? undefined : 1, gap: 4 }}>
         <Text variant="title">{title}</Text>
         {subtitle && <Text color={colors.muted}>{subtitle}</Text>}
       </View>
@@ -420,7 +557,7 @@ export function EmptyState({
           width: 60,
           height: 60,
           borderRadius: 12,
-          backgroundColor: colors.background,
+          backgroundColor: colors.backgroundSecondary,
           alignItems: "center",
           justifyContent: "center",
           marginBottom: 4,
@@ -442,6 +579,29 @@ export function EmptyState({
         />
       )}
     </Panel>
+  );
+}
+export function LoadingState({
+  label = "Preparando sua arena…",
+}: {
+  label?: string;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityState={{ busy: true }}
+      style={{
+        alignItems: "center",
+        justifyContent: "center",
+        gap: tokens.spacing.md,
+        padding: tokens.spacing.page,
+      }}
+    >
+      <ActivityIndicator color={colors.primaryDark} />
+      <Text color={colors.muted}>{label}</Text>
+    </View>
   );
 }
 export function ConfirmDialog({
@@ -500,9 +660,9 @@ export function ConfirmDialog({
 }
 const s = StyleSheet.create({
   button: {
-    minHeight: 46,
-    borderRadius: 8,
-    borderWidth: 2,
+    minHeight: tokens.dimensions.button,
+    borderRadius: tokens.radius.md,
+    borderWidth: tokens.border.focus,
     paddingHorizontal: 17,
     paddingVertical: 10,
     flexDirection: "row",
@@ -514,8 +674,12 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: tokens.radius.lg,
+    padding: tokens.spacing.lg,
+    shadowColor: colors.ink,
+    shadowOpacity: tokens.shadow.opacity,
+    shadowRadius: tokens.shadow.radius,
+    shadowOffset: { width: 0, height: 2 },
   },
   input: {
     minHeight: 48,
@@ -533,6 +697,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "rgba(15,15,15,0.6)",
+    backgroundColor: colors.overlay,
   },
 });

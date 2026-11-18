@@ -11,7 +11,19 @@ jest.mock("react-native-reanimated", () => {
   const animation = { duration: () => animation, delay: () => animation };
   return {
     __esModule: true,
-    default: { View },
+    default: {
+      View,
+      createAnimatedComponent: (Component: unknown) => Component,
+    },
+    useSharedValue: (value: unknown) => ({
+      value,
+      get: () => value,
+      set: (next: unknown) => {
+        value = next;
+      },
+    }),
+    useAnimatedStyle: (callback: () => unknown) => callback(),
+    withTiming: (value: unknown) => value,
     FadeInDown: animation,
     SlideInLeft: animation,
     SlideInRight: animation,

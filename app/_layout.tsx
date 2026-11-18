@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { Stack, ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -10,27 +10,31 @@ import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { BarlowCondensed_800ExtraBold } from "@expo-google-fonts/barlow-condensed/800ExtraBold";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAppStore, hydrateApp } from "../src/store/useAppStore";
-import { Text, Button, Notice } from "../src/components/ui";
+import { Text, Button, Notice, LoadingState } from "../src/components/ui";
 import { useReducedMotion } from "../src/hooks/useReducedMotion";
+import { colors, tokens } from "../src/theme/tokens";
+import { FontContext } from "../src/theme/FontContext";
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
-    <View
-      style={{
-        flex: 1,
-        padding: 32,
-        justifyContent: "center",
-        gap: 20,
-        backgroundColor: "#F5F5F3",
-      }}
-    >
-      <Text variant="title">Vamos tentar de novo?</Text>
-      <Text>
-        Não foi possível abrir esta tela. Seus campeonatos continuam armazenados
-        no dispositivo.
-      </Text>
-      <Button label="Tentar novamente" onPress={retry} />
-    </View>
+    <FontContext.Provider value={false}>
+      <View
+        style={{
+          flex: 1,
+          padding: 32,
+          justifyContent: "center",
+          gap: 20,
+          backgroundColor: colors.background,
+        }}
+      >
+        <Text variant="title">Vamos tentar de novo?</Text>
+        <Text>
+          Não foi possível abrir esta tela. Seus campeonatos continuam
+          armazenados no dispositivo.
+        </Text>
+        <Button label="Tentar novamente" onPress={retry} />
+      </View>
+    </FontContext.Provider>
   );
 }
 export default function RootLayout() {
@@ -45,33 +49,35 @@ export default function RootLayout() {
   const hydrated = useAppStore((s) => s.hydrated),
     storageError = useAppStore((s) => s.storageError);
   useEffect(() => hydrateApp(), []);
-  if ((!fontsLoaded && !fontError) || !hydrated)
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#F5F5F3",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-        }}
-      >
-        <ActivityIndicator color="#C24100" />
-        <Text>Preparando sua arena…</Text>
-      </View>
-    );
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      {storageError && <Notice tone="error" message={storageError} />}
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: "#F5F5F3" },
-          animation: reduced ? "none" : "fade",
-          animationDuration: 200,
-        }}
-      />
+      <FontContext.Provider value={fontsLoaded}>
+        <StatusBar style="dark" />
+        {storageError && <Notice tone="error" message={storageError} />}
+        {fontError && (
+          <Notice message="Não foi possível carregar as fontes. Estamos usando as fontes do dispositivo." />
+        )}
+        {(!fontsLoaded && !fontError) || !hydrated ? (
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: colors.background,
+              justifyContent: "center",
+            }}
+          >
+            <LoadingState />
+          </View>
+        ) : (
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+              animation: reduced ? "none" : "fade",
+              animationDuration: tokens.motion.navigation,
+            }}
+          />
+        )}
+      </FontContext.Provider>
     </SafeAreaProvider>
   );
 }

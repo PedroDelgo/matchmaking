@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Animated, {
   FadeInDown,
   LinearTransition,
@@ -42,6 +42,17 @@ export function LobbyScreen() {
   const wide = useWindowDimensions().width >= tokens.breakpoints.desktop,
     { reduced, ready } = useMotionPreference();
   const drawingRef = useRef(false);
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        // Router may keep this screen mounted underneath another route. Losing
+        // focus closes presentation only; the already-saved draw stays intact.
+        drawingRef.current = false;
+        setDrawing(false);
+      },
+      [],
+    ),
+  );
   const finishDrawing = useCallback(() => {
     if (!drawingRef.current) return;
     drawingRef.current = false;

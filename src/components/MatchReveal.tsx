@@ -75,28 +75,28 @@ function Entrant({
   }));
   return (
     <Animated.View
-      accessible
-      accessibilityLabel={`Participante ${index + 1}: ${participant.displayName}`}
       entering={
         reduced ? undefined : FadeInDown.duration(motion.duration.transition)
       }
-      style={[
-        styles.entrant,
-        { width: compact ? "25%" : "50%" },
-        animatedStyle,
-      ]}
+      style={{ width: compact ? "25%" : "50%" }}
     >
-      <View style={styles.avatarRing}>
-        <Avatar name={participant.displayName} size={compact ? 40 : 64} />
-      </View>
-      <Text
-        variant="caption"
-        color={colors.white}
-        numberOfLines={2}
-        style={{ textAlign: "center" }}
+      <Animated.View
+        accessible
+        accessibilityLabel={`Participante ${index + 1}: ${participant.displayName}`}
+        style={[styles.entrant, { width: "100%" }, animatedStyle]}
       >
-        {participant.displayName}
-      </Text>
+        <View style={styles.avatarRing}>
+          <Avatar name={participant.displayName} size={compact ? 40 : 64} />
+        </View>
+        <Text
+          variant="caption"
+          color={colors.white}
+          numberOfLines={2}
+          style={{ textAlign: "center" }}
+        >
+          {participant.displayName}
+        </Text>
+      </Animated.View>
     </Animated.View>
   );
 }

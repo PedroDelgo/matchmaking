@@ -2,6 +2,8 @@
 
 Status: **planejamento, sem backend implementado**. Revisão em 23/11/2026, após a auditoria da Etapa 4. Não foram criados projetos remotos, contas, tabelas, credenciais, funções, SDKs adicionais ou deploys. As escolhas abaixo são propostas reversíveis; devem ser confirmadas por uma prova transacional e testes de múltiplos clientes antes da implementação pública.
 
+Continuidade: o parágrafo acima registra o estado deste plano quando foi escrito. A [Etapa 5A](stage-5a.md) implementou depois a fundação local, migrations e a prova transacional em PostgreSQL real. O aplicativo permanece local; Auth completo, projeto remoto, convites e Realtime continuam pendentes. Este documento preserva a proposta das etapas futuras.
+
 ## Ponto de partida e regras preservadas
 
 O aplicativo Expo SDK 58 usa Expo Router, Zustand e o envelope versão 1 da chave `matchmaking-local-v1`. O estado persistido contém `tournaments`, `profile` e `draft`; ações, hidratação e erros de armazenamento ficam fora dele. AsyncStorage atende Android/iOS; localStorage atende web. A proteção atual preserva dados inválidos e bloqueia novas gravações. Uma resposta remota vazia ou uma falha de autenticação nunca deverá substituir esse armazenamento.

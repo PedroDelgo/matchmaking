@@ -12,6 +12,7 @@ Primeira versão funcional e local de uma plataforma de torneios: **Início → 
 - Reanimated para transições, revelação dos confrontos e celebração.
 - Inter, Barlow Condensed ExtraBold e Ionicons, empacotados localmente.
 - Jest, React Native Testing Library e Playwright.
+- Fundação backend local: Supabase CLI, PostgreSQL 17, serviço Node 24/TypeScript, `pg` e `jose`, desacoplados do app.
 
 As dependências específicas do SDK foram instaladas com `expo install`, conforme a [documentação oficial](https://docs.expo.dev/router/installation/). `npm run check:deps` verifica a compatibilidade instalada.
 
@@ -78,7 +79,7 @@ src/screens/                 Fluxos e composição das telas
 src/components/              Design system, navegação e componentes de torneio
 src/theme/                   Paleta oficial, fontes, espaçamento e movimento
 src/features/tournaments/
-  domain/                    Tipos e identificação visual de nomes repetidos
+  domain/                    Tipos, validação e identificação de nomes repetidos
   engine/                    Motor puro de chaveamento e estatísticas
 src/store/                   Zustand, validação e adaptador de armazenamento
 src/hooks/                   Movimento reduzido e layout responsivo
@@ -88,6 +89,8 @@ tests/                       Domínio, persistência e comportamento das telas
 e2e/                         Fluxo completo no navegador
 docs/                        Decisões e relatório de validação
 scripts/                     Preview da exportação local
+backend/                     Serviço transacional e testes PostgreSQL locais
+supabase/                    Configuração local, migrations e asserts de acesso
 ```
 
 ## Scripts e verificações
@@ -164,16 +167,41 @@ Na auditoria de 23/11/2026, a implementação de movimento já estava concluída
 
 ## Planejamento multiplayer — Etapa 5
 
-A [proposta de arquitetura](docs/stage-5-architecture.md) compara Supabase e NestJS + PostgreSQL e recomenda Supabase com um serviço TypeScript de comandos que reutiliza o motor. Inclui modelo de dados, autenticação/convidados, permissões, convites por link/QR/código, revisões concorrentes, idempotência, migração local e recuperação. É somente planejamento: nenhum backend, SDK remoto ou infraestrutura foi implementado. A escolha do runtime e do plano depende da prova transacional e da avaliação de carga/custos descritas no documento.
+A [proposta de arquitetura](docs/stage-5-architecture.md) compara Supabase e NestJS + PostgreSQL e orienta as entregas de autenticação, permissões, convites, concorrência, migração e recuperação. A fundação local da Etapa 5A foi implementada conforme o relato abaixo; integrações remotas, plano, pooler e avaliação de carga/custo continuam pendentes.
+
+## Fundação backend — Etapa 5A
+
+PostgreSQL local pelo Supabase CLI, três migrations com integridade/RLS/grants e serviço Node 24/TypeScript que reutiliza o motor existente. `record_result` e `correct_result` usam uma conexão/transação, lock por torneio, revisão otimista, evento e recibo idempotente. O servidor valida JWT assimétrico por JWKS e autoriza o proprietário; não há login visual ou conexão do app com o backend.
+
+Validação: **13 testes de integração em PostgreSQL real e 3 unitários Node**, incluindo HTTP compilado, concorrência, rollback, correções, reconstrução 4/8/16, RLS e escrita negada. As regressões mantêm **92 testes Jest e 52 Playwright** aprovados, além de TypeScript, lint, builds web/backend, bundles Hermes e compatibilidade Expo. Auth completo e pooler remoto não foram testados. Consulte [docs/stage-5a.md](docs/stage-5a.md) para arquitetura, segurança, evidências e limitações.
+
+Com Node 24 e Docker Desktop em execução:
+
+```powershell
+npm.cmd ci
+npm.cmd run db:start
+npm.cmd run db:migrate
+Copy-Item backend/.env.example backend/.env
+```
+
+Preencha somente o arquivo ignorado `backend/.env` com o DSN do operador PostgreSQL local em `MATCHMAKING_TEST_DATABASE_URL`. Não use credenciais remotas ou `EXPO_PUBLIC_`. Então execute:
+
+```powershell
+npm.cmd run backend:typecheck
+npm.cmd run backend:test
+npm.cmd run backend:test:db
+```
+
+A integração compila o serviço e cria/remove seu próprio banco e login temporários, sem resetar um banco existente. `db:start` inicia somente PostgreSQL; não oferece Auth funcional. O [relatório](docs/stage-5a.md#executar-localmente) explica como provisionar o login restrito e configurar um emissor JWT compatível para executar o HTTP manualmente. Nenhum projeto remoto, push ou deploy foi realizado nesta etapa.
 
 ## Limitações e próxima etapa
 
-Sem backend, login, sincronização, convites remotos, notificações ou QR Code funcional. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos; não existe backup em nuvem.
+O app continua sem conexão remota, login, sincronização, convites remotos, notificações ou QR Code funcional. A fundação backend está disponível apenas para desenvolvimento/testes locais. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos; não existe backup em nuvem.
 
 A validação web foi feita no Chromium em quatro larguras (1440, 768, 375 e 320 px), com toque simulado nos projetos tablet e mobile. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
 
-A auditoria npm da implementação inicial encontrou alertas em dependências transitivas do ecossistema Expo/Metro/Jest. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`, que sugeria retroceder o SDK. A auditoria não foi repetida na Etapa 2. A revisão desses alertas é uma pendência para publicação comercial. Veja [o relatório de validação inicial](docs/validation.md).
+A auditoria npm repetida na Etapa 5A apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja os [registros da Etapa 5A](docs/stage-5a.md#validação-executada) e o [relatório inicial](docs/validation.md).
 
-**Próximo passo recomendado:** homologar em Android e iPhone reais, incluindo persistência, teclado, animações, compartilhamento e acessibilidade. Depois, definir o contrato do backend e uma estratégia de backup/migração antes de implementar convites reais.
+**Próximo passo recomendado:** Etapa 5B, identidade/autenticação e perfis persistentes com testes de sessão e isolamento entre contas, preservando o app local. A homologação em Android/iPhone reais continua pendente, incluindo persistência, teclado, animações, compartilhamento e acessibilidade. Campeonatos remotos/importação, convites e Realtime pertencem às etapas posteriores.
 
 Decisões visuais e referências: [docs/design-decisions.md](docs/design-decisions.md). O envio do código ao GitHub é separado da publicação do aplicativo. Nenhum deploy ou publicação em loja foi realizado.

@@ -21,7 +21,8 @@
     "backend:test": "tsx --test backend/test/*.test.ts",
     "backend:test:db": "tsx --env-file-if-exists=backend/.env backend/test/run-database.ts",
     "db:start": "supabase db start",
-    "db:migrate": "supabase migration up --local"
+    "db:migrate": "supabase migration up --local",
+    "prebackend:test:db": "npm run backend:build"
   },
   "dependencies": {
     "@expo-google-fonts/barlow-condensed": "^0.4.1",

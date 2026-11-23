@@ -49,7 +49,7 @@ O preview local abre em `http://127.0.0.1:8081`. O servidor de preview serve a S
 npm.cmd run android
 ```
 
-Requer Android Studio, SDK e um emulador iniciado. Para um aparelho físico, execute `npm.cmd start` e escaneie o QR Code em uma versão do Expo Go compatível com o SDK 58, ou use um development build compatível.
+Esse script abre um destino Android disponível. Para o Galaxy S25 Ultra com Expo Go compatível com SDK 58, use `npx.cmd expo start --go --lan --clear`, computador e telefone na mesma rede, e escaneie o QR no Expo Go. Confira o [roteiro Android da Etapa 4](docs/stage-4.md#galaxy-s25-ultra-expo-go-e-configuração-atual), com diagnóstico de LAN/túnel, autenticação e preparação de development build. O binário próprio exige SDK/JDK ou configuração de build em nuvem; `expo-dev-client` ainda não está instalado. Não houve homologação em aparelho nesta entrega.
 
 ### iOS
 
@@ -92,19 +92,19 @@ scripts/                     Preview da exportação local
 
 ## Scripts e verificações
 
-| Comando | Finalidade |
-| --- | --- |
-| `npm.cmd start` | Servidor Expo |
-| `npm.cmd run web` | Desenvolvimento web |
-| `npm.cmd run android` | Abrir emulador Android |
-| `npm.cmd run ios` | Abrir simulador iOS no macOS |
-| `npm.cmd run typecheck` | TypeScript strict |
-| `npm.cmd run lint` | ESLint com configuração Expo |
-| `npm.cmd test` | Testes Jest e React Native Testing Library |
-| `npm.cmd run build:web` | Exportação web em `dist/` |
-| `npm.cmd run preview` | Preview local de `dist/` |
-| `npm.cmd run test:e2e` | Playwright em 1440, 768, 375 e 320 px |
-| `npm.cmd run check:deps` | Compatibilidade das dependências com SDK |
+| Comando                  | Finalidade                                 |
+| ------------------------ | ------------------------------------------ |
+| `npm.cmd start`          | Servidor Expo                              |
+| `npm.cmd run web`        | Desenvolvimento web                        |
+| `npm.cmd run android`    | Abrir emulador Android                     |
+| `npm.cmd run ios`        | Abrir simulador iOS no macOS               |
+| `npm.cmd run typecheck`  | TypeScript strict                          |
+| `npm.cmd run lint`       | ESLint com configuração Expo               |
+| `npm.cmd test`           | Testes Jest e React Native Testing Library |
+| `npm.cmd run build:web`  | Exportação web em `dist/`                  |
+| `npm.cmd run preview`    | Preview local de `dist/`                   |
+| `npm.cmd run test:e2e`   | Playwright em 1440, 768, 375 e 320 px      |
+| `npm.cmd run check:deps` | Compatibilidade das dependências com SDK   |
 
 Para instalar o Chromium usado pelo Playwright em uma nova máquina:
 
@@ -114,7 +114,7 @@ npm.cmd run build:web
 npm.cmd run test:e2e
 ```
 
-Também é possível definir `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para um Chromium já instalado. Capturas e traces ficam em `.artifacts/`, ignorado pelo Git. Os testes de componentes substituem somente navegação, animações e a implementação nativa de armazenamento; as regras de torneio e as ações do estado são reais.
+Também é possível definir `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para um Chromium já instalado. Capturas e traces ficam em `.artifacts/`, ignorado pelo Git. Os testes de componentes isolam navegação, animações e integrações nativas; as regras de torneio e as ações do estado são reais.
 
 ## Regras e arquitetura
 
@@ -154,7 +154,13 @@ Validação da entrega: TypeScript e lint aprovados, 38 testes Jest, **20 casos 
 
 Teclado e navegação por etapas foram preparados para as plataformas nativas; modais permitem rolagem e respeitam safe areas. Nomes e placares longos foram revistos, o retorno recupera o chaveamento existente e animações temporárias encerram com cleanup. A hidratação agora preserva envelopes inválidos e impede que campos persistidos substituam ações do store.
 
-Validação atual: **63 testes Jest e 28 casos Playwright completos**, TypeScript/lint aprovados, verificações adicionais no servidor de desenvolvimento, exportação web e bundles Hermes Android/iOS. O [relatório da Etapa 3](docs/stage-3.md) distingue os testes executados das pendências e fornece o roteiro Android/iOS. Não houve execução nativa em aparelho/emulador. Os commits da Etapa 3 permanecem locais, sem push.
+Validação da Etapa 3: **63 testes Jest e 28 casos Playwright completos**, TypeScript/lint aprovados, verificações adicionais no servidor de desenvolvimento, exportação web e bundles Hermes Android/iOS. O [relatório da Etapa 3](docs/stage-3.md) distingue os testes executados das pendências e fornece o roteiro Android/iOS. Não houve execução nativa em aparelho/emulador. Seus commits foram enviados ao remoto após autorização posterior do usuário; o relatório registra o estado histórico da entrega.
+
+## Movimento e momentos competitivos — Etapa 4
+
+Seleção de modalidade, progresso da sala e transições de etapas compartilham tokens de movimento. Match Reveal apresenta o sorteio já persistido em uma sequência finita e pulável para 4/8/16. Chaveamento destaca rodadas, avanços e o caminho real do campeão; a Grande Final recebe apresentação própria. Champion Reveal combina nome, troféu e confetes com fim em 4,8 s, resultado real da final e compartilhamento protegido. Movimento reduzido apresenta os resultados diretamente, sem reproduzir a celebração após rerenders.
+
+Na auditoria de 23/11/2026, a implementação de movimento já estava concluída e foi preservada: **92 testes Jest em 16 suítes e 52 casos Playwright**, TypeScript, lint, exportação web, compatibilidade Expo e bundles Hermes Android/iOS aprovados. O [relatório da Etapa 4](docs/stage-4.md) classifica cada requisito e distingue a verificação web da homologação nativa ainda pendente. Os sete commits de implementação até `8b74dfd` haviam sido enviados ao remoto por autorização anterior; os novos registros de testes/documentação desta auditoria ficam locais, sem push ou deploy.
 
 ## Limitações e próxima etapa
 

@@ -2,7 +2,7 @@ const { defineConfig } = require("eslint/config");
 const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
-  { ignores: ["dist/*", ".expo/*", ".artifacts/*"] },
+  { ignores: ["dist/*", ".expo/*", ".artifacts/*", "backend/dist/**"] },
   {
     files: ["scripts/*.cjs"],
     languageOptions: { globals: { __dirname: "readonly" } },

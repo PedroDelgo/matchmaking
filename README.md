@@ -162,6 +162,10 @@ Seleção de modalidade, progresso da sala e transições de etapas compartilham
 
 Na auditoria de 23/11/2026, a implementação de movimento já estava concluída e foi preservada: **92 testes Jest em 16 suítes e 52 casos Playwright**, TypeScript, lint, exportação web, compatibilidade Expo e bundles Hermes Android/iOS aprovados. O [relatório da Etapa 4](docs/stage-4.md) classifica cada requisito e distingue a verificação web da homologação nativa ainda pendente. Os sete commits de implementação até `8b74dfd` haviam sido enviados ao remoto por autorização anterior; os novos registros de testes/documentação desta auditoria ficam locais, sem push ou deploy.
 
+## Planejamento multiplayer — Etapa 5
+
+A [proposta de arquitetura](docs/stage-5-architecture.md) compara Supabase e NestJS + PostgreSQL e recomenda Supabase com um serviço TypeScript de comandos que reutiliza o motor. Inclui modelo de dados, autenticação/convidados, permissões, convites por link/QR/código, revisões concorrentes, idempotência, migração local e recuperação. É somente planejamento: nenhum backend, SDK remoto ou infraestrutura foi implementado. A escolha do runtime e do plano depende da prova transacional e da avaliação de carga/custos descritas no documento.
+
 ## Limitações e próxima etapa
 
 Sem backend, login, sincronização, convites remotos, notificações ou QR Code funcional. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos; não existe backup em nuvem.

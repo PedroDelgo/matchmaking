@@ -108,17 +108,22 @@ async function returnToBracket(page: Page) {
 async function expectWithinViewport(page: Page, target: Locator) {
   // Router keeps the previous screen mounted behind a pushed match screen.
   target = target.filter({ visible: true });
-  await target.scrollIntoViewIfNeeded();
-  const box = await target.boundingBox();
-  expect(box).not.toBeNull();
+  await expect(target.first()).toBeVisible();
   const width = page.viewportSize()!.width;
-  expect(box!.x).toBeGreaterThanOrEqual(-1);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
-  expect(
-    await target.evaluate(
-      (element) => element.scrollWidth <= element.clientWidth + 1,
-    ),
-  ).toBe(true);
+  // The champion now also appears in the real final-result summary. Check all
+  // visible occurrences so both the impact name and the finalist remain legible.
+  for (const element of await target.all()) {
+    await element.scrollIntoViewIfNeeded();
+    const box = await element.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(-1);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+    expect(
+      await element.evaluate(
+        (node) => node.scrollWidth <= node.clientWidth + 1,
+      ),
+    ).toBe(true);
+  }
   expect(
     await page
       .locator("body")

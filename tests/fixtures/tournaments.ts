@@ -5,7 +5,10 @@ import {
   recordResult,
 } from "../../src/features/tournaments/engine/tournament";
 import type { TournamentStatus } from "../../src/features/tournaments/domain/types";
-export function tournamentFixture(status: TournamentStatus, id = status) {
+export function tournamentFixture(
+  status: TournamentStatus,
+  id: string = status,
+) {
   const names = {
     draft: "Copa de sábado",
     active: "Liga dos amigos",

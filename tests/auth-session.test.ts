@@ -490,3 +490,40 @@ test("callback encaminha o identificador PKCE ao SDK para isolar fluxos simultâ
   });
   controller.stop();
 });
+
+test("remount mantém chamada física serializada e ignora SIGNED_IN atrasado antes da resposta", async () => {
+  const { controller, auth, emit } = setup();
+  controller.start();
+  await flush();
+  const late = deferred<Awaited<ReturnType<typeof auth.signInWithPassword>>>();
+  auth.signInWithPassword.mockImplementationOnce(async () => {
+    const result = await late.promise;
+    // Match the SDK ordering: persist/notify, then resolve the HTTP operation.
+    emit("SIGNED_IN", result.data.session);
+    return result;
+  });
+  const first = controller.signIn("a@example.test", "valid-password");
+  controller.stop();
+  controller.start();
+  await flush();
+  await expect(
+    controller.signIn("b@example.test", "valid-password"),
+  ).rejects.toThrow("Aguarde");
+  expect(auth.signInWithPassword).toHaveBeenCalledTimes(1);
+  late.resolve({ data: { session: session("A") }, error: null });
+  await expect(first).rejects.toThrow("interrompida");
+  await flush();
+  expect(controller.getSnapshot()).toMatchObject({
+    session: null,
+    profile: null,
+    busy: false,
+  });
+  auth.signInWithPassword.mockResolvedValue({
+    data: { session: session("B") },
+    error: null,
+  });
+  await controller.signIn("b@example.test", "valid-password");
+  await flush();
+  expect(controller.getSnapshot().session?.user.id).toBe("B");
+  controller.stop();
+});

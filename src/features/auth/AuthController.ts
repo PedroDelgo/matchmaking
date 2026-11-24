@@ -61,6 +61,8 @@ export class AuthController {
   private unsubscribeAuth: (() => void) | null = null;
   private running = false;
   private operationPending = false;
+  private operationCompletion: Promise<void> = Promise.resolve();
+  private sessionOperationPending = false;
   private operationId = 0;
   private sessionInvalidation = 0;
   private suppressSession = false;
@@ -113,6 +115,7 @@ export class AuthController {
   start() {
     if (this.running) return;
     this.running = true;
+    if (this.operationPending) this.patch({ busy: true });
     if (!this.client) return;
     const { data } = this.client.auth.onAuthStateChange((event, session) => {
       // Do not await Auth SDK calls while its internal event lock is held.
@@ -125,11 +128,15 @@ export class AuthController {
         this.patch({ status: "signedOut" });
         return;
       }
+      // Auth emits before its request resolves. The guarded explicit result
+      // publishes our own session changes, including across effect remounts.
+      if (this.sessionOperationPending) return;
       const eventEpoch = this.epoch;
       queueMicrotask(() => {
         if (
           !this.running ||
           this.suppressSession ||
+          this.sessionOperationPending ||
           !session ||
           this.validation ||
           eventEpoch !== this.epoch
@@ -146,7 +153,6 @@ export class AuthController {
     this.running = false;
     this.sessionInvalidation++;
     this.operationId++;
-    this.operationPending = false;
     this.patch({ busy: false });
     this.epoch++;
     this.validation = null;
@@ -215,6 +221,10 @@ export class AuthController {
 
   retrySession = (): Promise<void> => {
     if (this.validation) return this.validation;
+    if (this.operationPending)
+      return this.operationCompletion.then(() => {
+        if (this.running) return this.retrySession();
+      });
     const run = async () => {
       const client = this.requireClient();
       const recoveryUser = this.state.recoveryReady
@@ -277,10 +287,18 @@ export class AuthController {
     return validation;
   };
 
-  private async operation<T>(run: () => Promise<T>): Promise<T> {
+  private async operation<T>(
+    run: () => Promise<T>,
+    changesSession = false,
+  ): Promise<T> {
     if (this.operationPending)
       throw new AuthUserError("Aguarde a operação atual terminar.");
     this.operationPending = true;
+    this.sessionOperationPending = changesSession;
+    let finish!: () => void;
+    this.operationCompletion = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     const operationId = ++this.operationId;
     this.patch({ busy: true, error: null });
     try {
@@ -298,10 +316,12 @@ export class AuthController {
       if (operationId === this.operationId) this.patch({ error: message });
       throw new AuthUserError(message);
     } finally {
-      if (operationId === this.operationId) {
-        this.operationPending = false;
-        this.patch({ busy: false });
-      }
+      // A stopped controller still owns the physical request until it settles.
+      // Releasing it early would allow an old SIGNED_IN to replace account B.
+      this.operationPending = false;
+      this.sessionOperationPending = false;
+      if (this.running) this.patch({ busy: false });
+      finish();
     }
   }
 
@@ -325,7 +345,7 @@ export class AuthController {
           "Não foi possível iniciar a sessão. Tente novamente.",
         );
       this.acceptSession(data.session);
-    });
+    }, true);
 
   signUp = (email: string, password: string) =>
     this.operation(async () => {
@@ -344,7 +364,7 @@ export class AuthController {
       if (error) throw error;
       if (data.session) this.acceptSession(data.session);
       return { needsConfirmation: !data.session };
-    });
+    }, true);
 
   requestPasswordReset = (email: string) =>
     this.operation(async () => {
@@ -393,7 +413,7 @@ export class AuthController {
         recovery ? "PASSWORD_RECOVERY" : "SIGNED_IN",
       );
       return { recovery };
-    });
+    }, true);
     this.callback = { code, flowId, result };
     return result;
   };

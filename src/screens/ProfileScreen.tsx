@@ -16,6 +16,7 @@ import { getRanking } from "../features/tournaments/engine/tournament";
 import { colors } from "../theme/tokens";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { expo } from "../../app.json";
+import { AccountPanel } from "../components/AccountPanel";
 export function ProfileScreen() {
   const profile = useAppStore((s) => s.profile),
     tournaments = useAppStore((s) => s.tournaments),
@@ -45,8 +46,10 @@ export function ProfileScreen() {
         title="Perfil de competidor"
         description="Um apelido, muitas disputas para contar."
       />
+      <AccountPanel />
       <View style={{ flexDirection: wide ? "row" : "column", gap: 24 }}>
         <Panel style={{ flex: 1, gap: 24 }}>
+          <Text variant="heading">Seu perfil neste dispositivo</Text>
           <View style={{ flexDirection: "row", gap: 18, alignItems: "center" }}>
             <Avatar name={profile.nickname} size={72} />
             <View style={{ flex: 1, gap: 6 }}>
@@ -86,7 +89,7 @@ export function ProfileScreen() {
         </Panel>
         <View style={{ flex: 1, gap: 20 }}>
           <Panel style={{ gap: 22 }}>
-            <Text variant="title">Sua trajetória</Text>
+            <Text variant="title">Sua trajetória local</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               {[
                 { n: associated.length, label: "Disputas" },
@@ -125,8 +128,8 @@ export function ProfileScreen() {
             </View>
             <Text color={colors.muted}>
               O Matchmaking organiza disputas entre amigos. Seus campeonatos e
-              este perfil ficam neste dispositivo, sem login ou sincronização.
-              Limpar os dados do aplicativo pode apagar esse histórico.
+              este perfil local ficam neste dispositivo, mesmo ao entrar em uma
+              conta. Limpar os dados do aplicativo pode apagar esse histórico.
             </Text>
           </Panel>
         </View>

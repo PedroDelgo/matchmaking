@@ -14,6 +14,7 @@ import { Text, Button, Notice, LoadingState } from "../src/components/ui";
 import { useReducedMotion } from "../src/hooks/useReducedMotion";
 import { colors, tokens } from "../src/theme/tokens";
 import { FontContext } from "../src/theme/FontContext";
+import { AuthProvider } from "../src/features/auth/AuthProvider";
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
@@ -51,33 +52,35 @@ export default function RootLayout() {
   useEffect(() => hydrateApp(), []);
   return (
     <SafeAreaProvider>
-      <FontContext.Provider value={fontsLoaded}>
-        <StatusBar style="dark" />
-        {storageError && <Notice tone="error" message={storageError} />}
-        {fontError && (
-          <Notice message="Não foi possível carregar as fontes. Estamos usando as fontes do dispositivo." />
-        )}
-        {(!fontsLoaded && !fontError) || !hydrated ? (
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: colors.background,
-              justifyContent: "center",
-            }}
-          >
-            <LoadingState />
-          </View>
-        ) : (
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-              animation: reduced ? "none" : "fade",
-              animationDuration: tokens.motion.navigation,
-            }}
-          />
-        )}
-      </FontContext.Provider>
+      <AuthProvider>
+        <FontContext.Provider value={fontsLoaded}>
+          <StatusBar style="dark" />
+          {storageError && <Notice tone="error" message={storageError} />}
+          {fontError && (
+            <Notice message="Não foi possível carregar as fontes. Estamos usando as fontes do dispositivo." />
+          )}
+          {(!fontsLoaded && !fontError) || !hydrated ? (
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: colors.background,
+                justifyContent: "center",
+              }}
+            >
+              <LoadingState />
+            </View>
+          ) : (
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+                animation: reduced ? "none" : "fade",
+                animationDuration: tokens.motion.navigation,
+              }}
+            />
+          )}
+        </FontContext.Provider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

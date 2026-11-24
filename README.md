@@ -2,7 +2,7 @@
 
 Transforme qualquer disputa entre amigos em um campeonato memorável.
 
-Plataforma de torneios locais: **Início → Criar → Sala → Sortear → Chaveamento → Resultados → Campeão**. A aplicação começa vazia e lista somente campeonatos criados neste dispositivo. Os nomes de demonstração só são adicionados pela ação explícita na sala. A conta Supabase é opcional e mantém identidade/perfil; seus campeonatos continuam no dispositivo, sem importação automática.
+Campeonatos **neste dispositivo**, sem conta e offline, ou **na nuvem**, vinculados à conta: **Início → Criar → Sala → Sortear → Chaveamento → Resultados → Campeão**. A Home reúne as duas origens. A importação cria uma cópia somente após revisão e confirmação; o original local permanece intacto. Nesta entrega, Auth, API e PostgreSQL foram executados apenas no computador de desenvolvimento: não existe serviço publicado na internet.
 
 ## Tecnologias
 
@@ -132,11 +132,11 @@ Também é possível definir `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para um Chrom
 - Perfil associado por `profileId`; nomes iguais em torneios diferentes não são vinculados automaticamente.
 - Persistência na chave `matchmaking-local-v1`, esquema versão 1, com hidratação explícita após montar o cliente. O rascunho também é persistido.
 - Dados incompatíveis ou estruturalmente inválidos são preservados e as gravações ficam bloqueadas na sessão, com mensagem ao usuário. Nenhuma recuperação apaga o conteúdo automaticamente. Falhas de escrita também bloqueiam novas gravações até recarregar, preservando o estado na memória.
-- O adaptador de armazenamento e os métodos do store delimitam a futura integração com API, sem abstrações de backend antecipadas.
+- O store local permanece independente. Cache remoto por conta e API de comandos tratam revisões, conflitos e tentativas idempotentes sem misturar snapshots ao envelope local.
 
 ## Implementado
 
-- Home com campeonatos locais e tela Torneios com busca e filtros funcionais.
+- Home com campeonatos locais/remotos e tela Torneios com busca e filtros por origem/status.
 - Criação progressiva, rascunho recuperável e descarte confirmado.
 - Sala com adicionar/remover, capacidade, participação explícita do organizador e exemplos opcionais.
 - Sorteio único, persistido e pulável; animação e alternativa sem movimento.
@@ -216,16 +216,40 @@ npm.cmd run backend:test:db:local
 npm.cmd run test:auth:e2e
 ```
 
-Esses runners capturam as credenciais locais da CLI somente em memória. A regressão completa cobre **124 testes Jest, 60 Playwright (8 de Auth real), 3 unitários Node, 16 PostgreSQL e 7 subtestes Auth reais**. `test:e2e` sem as variáveis administrativas marca os casos de Auth como skipped; `test:auth:e2e` os executa. Os bundles Hermes Android/iOS foram exportados, mas os fluxos nativos ainda não foram homologados em aparelho. No S25, use a URL LAN do computador, as portas e os redirects exatos do [roteiro 5B](docs/stage-5b.md#galaxy-s25-ultra--preparação-e-roteiro-pendente).
+Esses runners capturam as credenciais locais da CLI somente em memória. Na entrega 5B, comprovaram **124 testes Jest, 60 Playwright (8 de Auth real), 3 unitários Node, 16 PostgreSQL e 7 subtestes Auth reais**. Os bundles Hermes Android/iOS foram exportados, mas os fluxos nativos ainda não foram homologados em aparelho. No S25, use a URL LAN do computador, as portas e os redirects exatos do [roteiro 5B](docs/stage-5b.md#galaxy-s25-ultra--preparação-e-roteiro-pendente). A validação ampliada da 5C está no relatório seguinte.
+
+## Campeonatos na conta — Etapa 5C
+
+A [entrega 5C](docs/stage-5c.md) amplia a API Node com criação, lista paginada, detalhes consistentes, participantes, sorteio e importação idempotente. Placares/correções continuam transacionais. O cliente usa as mesmas telas e animações; uma alteração remota só aparece como salva depois da confirmação do servidor. Perda da resposta permite repetir o comando original; conflito exige reler e revisar a intenção.
+
+Com Node 24 e Docker ativo, em um terminal:
+
+```powershell
+npm.cmd run auth:local
+npm.cmd run api:local
+```
+
+`api:local` usa um login restrito temporário, guardado somente em memória e removido ao encerrar normalmente. Não copia credenciais administrativas para o app. Em outro terminal:
+
+```powershell
+$env:EXPO_PUBLIC_MATCHMAKING_API_URL = 'http://127.0.0.1:8090'
+npm.cmd run web
+```
+
+As configurações públicas de Auth continuam no `.env.local` ignorado e preservado. Consulte `.env.example`. `127.0.0.1` serve para o navegador do computador; para telefone físico, siga o [roteiro 5C](docs/stage-5c.md#galaxy-s25-ultra--roteiro-pendente). O telefone acessa APIs, nunca a porta PostgreSQL.
+
+Use `npm.cmd run test:auth:e2e` para compilar o serviço, iniciar a API temporária e executar também os casos online reais. O build recebe somente configurações públicas. `test:e2e` comum sem as variáveis de teste mantém os casos Auth/online como skipped. Não execute outra exportação web enquanto o preview da suíte lê `dist`.
+
+Validação final 5C: **140 testes Jest/23 suítes, 84 Playwright, 24 PostgreSQL, 3 Node e 7 subtestes Auth + pai**, aprovados. TypeScript/lint, build backend, export web e bundles Hermes Android/iOS também passaram. A stack de teste é local; os bundles não representam homologação em aparelho.
 
 ## Limitações e próxima etapa
 
-O app conecta somente identidade/perfil ao Supabase configurado. Campeonatos remotos, sincronização, convites remotos, notificações e QR Code funcional seguem pendentes; não existe backup em nuvem. A fundação backend está disponível para desenvolvimento/testes locais. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos.
+Identidade/perfil e campeonatos remotos funcionam com as APIs configuradas. Sincronização contínua, convites, notificações e QR Code funcional continuam pendentes. Não há backup remoto ou ambiente de produção. O cache remoto é de memória por conta; o journal separado guarda tentativas exatas e pode conter nomes/snapshots, sem tokens. Ele não é sincronização offline. Pontos corridos e fase de grupos continuam futuros. Limpar dados ou desinstalar pode remover campeonatos locais e os metadados de retomada.
 
 A validação web foi feita no Chromium em quatro larguras (1440, 768, 375 e 320 px), com toque simulado nos projetos tablet e mobile. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
 
-A auditoria npm repetida na Etapa 5A apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja os [registros da Etapa 5A](docs/stage-5a.md#validação-executada) e o [relatório inicial](docs/validation.md).
+A auditoria npm repetida na Etapa 5C apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja o [relatório 5C](docs/stage-5c.md).
 
-**Próximo passo:** homologar a 5B no Android/iPhone e preparar a Etapa 5C, leitura/criação remota e importação idempotente com consentimento. Persistência nativa, deep links, teclado, animações, compartilhamento e acessibilidade em aparelho continuam pendentes. Convites e Realtime pertencem às etapas posteriores.
+**Próximo passo:** homologar 5B/5C no Android/iPhone e preparar a **5D**, com fronteira própria para convites/admissão, link/código/QR, expiração e revogação. Persistência nativa, deep links, teclado e acessibilidade em aparelho continuam pendentes. Realtime e colaboração ao vivo pertencem à 5E.
 
 Decisões visuais e referências: [docs/design-decisions.md](docs/design-decisions.md). O envio do código ao GitHub é separado da publicação do aplicativo. Nenhum deploy ou publicação em loja foi realizado.

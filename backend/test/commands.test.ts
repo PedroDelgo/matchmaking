@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { parseCommand, commandHash } from "../src/commands";
+import { parseCommand, commandHash, parseName } from "../src/commands";
+import { createTournament } from "../../src/features/tournaments/engine/tournament";
 import { createAuthenticator } from "../src/auth";
 
 const command = {
@@ -14,6 +15,21 @@ const command = {
   payload: { matchId: "legacy-r1-m1", score1: 3, score2: 1 },
 };
 test("strict contract and canonical hash ignore property order and UUID case", () => {
+  for (const name of ["A".repeat(80), "🏆".repeat(40)])
+    assert.equal(
+      createTournament({
+        name: parseName(name),
+        modality: "Truco",
+        capacity: 4,
+      }).name,
+      name,
+    );
+  for (const name of ["A".repeat(81), "🏆".repeat(41)]) {
+    assert.throws(() =>
+      createTournament({ name, modality: "Truco", capacity: 4 }),
+    );
+    assert.throws(() => parseName(name));
+  }
   const a = parseCommand(command);
   const b = parseCommand({
     ...command,

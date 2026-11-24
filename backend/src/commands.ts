@@ -134,7 +134,7 @@ export function parseName(value: unknown): string {
   if (
     typeof value !== "string" ||
     !value.trim() ||
-    Array.from(value.trim()).length > 80 ||
+    value.trim().length > 80 ||
     /[\u0000-\u001f\u007f-\u009f]/.test(value)
   )
     throw new CommandError(400, "INVALID_NAME");

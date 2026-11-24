@@ -17,6 +17,7 @@ import {
   startTournament,
 } from "../../src/features/tournaments/engine/tournament";
 import type { Tournament } from "../../src/features/tournaments/domain/types";
+import { parseImportSnapshot } from "../../src/features/tournaments/domain/snapshot";
 
 export type CommandResponse = {
   tournamentId: string;
@@ -109,6 +110,11 @@ export function createCommandService(
         throw new CommandError(422, "INVALID_DOMAIN_COMMAND");
       }
       const revision = Number(row.revision) + 1;
+      try {
+        parseImportSnapshot(next);
+      } catch {
+        throw new CommandError(422, "INVALID_AGGREGATE");
+      }
       if (
         command.type === "add_participant" ||
         command.type === "remove_participant"

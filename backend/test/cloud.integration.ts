@@ -285,10 +285,52 @@ test("same import identity is serialized across different commands and rollback 
   assert.deepEqual(row, { receipts: 2, tournaments: 1 });
   assert.ok(await cloud.operate(a, bad));
 });
+test("repeatable-read detail never mixes revisions while a real command commits between its queries", async () => {
+  const a = await actor(),
+    r = await cloud.operate(a, create());
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+      entered = resolve;
+    }),
+    resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const reader = createTournamentService(pool, {
+    afterAuthorizeRead: async () => {
+      entered();
+      await resume;
+    },
+  });
+  const reading = reader.detail(a, r.tournamentId);
+  await ready;
+  try {
+    await execute(
+      a,
+      command(r, "add_participant", { displayName: "Concorrente" }),
+    );
+  } finally {
+    release();
+  }
+  const old = await reading;
+  assert.equal(old.revision, 1);
+  assert.equal(old.tournament.participants.length, 0);
+  const latest = await cloud.detail(a, r.tournamentId);
+  assert.equal(latest.revision, 2);
+  assert.equal(latest.tournament.participants.length, 1);
+});
 test("strict snapshots reject cross references, unknown fields, malformed dates/statuses and unsafe scores", async () => {
   const a = await actor(),
     t = fixture(4, true);
   const bad = [
+    { ...t, createdAt: "+010000-01-01T00:00:00.000Z" },
+    {
+      ...t,
+      matches: t.matches.map((m) => ({
+        ...m,
+        score1: Number.MAX_SAFE_INTEGER,
+        score2: Number.MAX_SAFE_INTEGER,
+      })),
+    },
     { ...t, owner_user_id: a.userId },
     { ...t, createdAt: "invalid" },
     { ...t, rounds: t.rounds.map((r) => ({ ...r, id: "duplicate" })) },

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { AuthenticatedActor } from "./auth";
 import {
@@ -177,7 +177,10 @@ function parseCursor(value: string | null): Cursor | undefined {
 }
 export function createTournamentService(
   pool: Pool,
-  hooks: { afterSave?: () => void | Promise<void> } = {},
+  hooks: {
+    afterSave?: () => void | Promise<void>;
+    afterAuthorizeRead?: () => void | Promise<void>;
+  } = {},
 ) {
   return {
     async operate(
@@ -206,7 +209,9 @@ export function createTournamentService(
         let snapshot: Tournament, importHash: string | undefined;
         if (op.type === "import_tournament") {
           const p = op.payload;
-          importHash = commandHash(canonicalSnapshot(p.snapshot));
+          importHash = createHash("sha256")
+            .update(canonicalSnapshot(p.snapshot))
+            .digest("hex");
           await c.query(
             "select pg_advisory_xact_lock(hashtextextended($1,0))",
             [`import:${actor.userId}:${p.installationId}:${p.importId}`],
@@ -278,6 +283,7 @@ export function createTournamentService(
       id = uuidValue(id);
       return transaction(pool, true, async (c) => {
         const revision = await authorize(c, id, actor.userId);
+        await hooks.afterAuthorizeRead?.();
         return tournamentResponse(id, revision, await loadTournament(c, id));
       });
     },

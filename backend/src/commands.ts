@@ -44,7 +44,12 @@ export function exact(value: Record<string, unknown>, fields: string[]) {
     throw new CommandError(400, "UNEXPECTED_FIELD");
 }
 function id(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= 200;
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    Array.from(value).length <= 200 &&
+    !/[\u0000-\u001f\u007f-\u009f]/.test(value)
+  );
 }
 export function parseCommand(value: unknown): TournamentCommand {
   const c = object(value);

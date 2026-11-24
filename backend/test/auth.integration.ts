@@ -322,13 +322,14 @@ test(
         },
       );
       await context.test(
-        "real Auth token reaches compiled HTTP commands with a restricted login and owner authorization",
+        "real Auth token reaches compiled cloud API and commands with restricted PostgreSQL and owner authorization",
         async () => {
           const login = `mm_5b_role_${randomUUID().replaceAll("-", "")}`;
           const password = randomUUID();
           let roleCreated = false;
           let tournamentId: string | undefined;
           let child: ReturnType<typeof spawn> | undefined;
+          const cloudIds: string[] = [];
           try {
             await operator.query(
               `create role ${login} login noinherit nosuperuser nobypassrls password '${password}'`,
@@ -413,6 +414,162 @@ test(
               [tournamentId],
             );
             assert.equal(Number(persisted.rows[0].revision), 1);
+            const api = (
+              path: string,
+              token: string,
+              body?: unknown,
+              originHeader?: string,
+            ) =>
+              fetch(`${origin}${path}`, {
+                method: body === undefined ? "GET" : "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  ...(body === undefined
+                    ? {}
+                    : { "Content-Type": "application/json" }),
+                  ...(originHeader ? { Origin: originHeader } : {}),
+                },
+                body: body === undefined ? undefined : JSON.stringify(body),
+              });
+            const creation = {
+              commandId: randomUUID(),
+              commandVersion: 1,
+              type: "create_tournament",
+              payload: {
+                name: "Auth cloud proof",
+                modality: "Truco",
+                capacity: 4,
+                format: "single_elimination",
+              },
+            };
+            assert.equal(
+              (await api("/tournaments", "invalid", creation)).status,
+              401,
+            );
+            assert.equal(
+              (
+                await api("/tournaments", owner.access_token, {
+                  ...creation,
+                  owner_user_id: idB,
+                })
+              ).status,
+              400,
+            );
+            assert.equal(
+              (
+                await api("/tournaments", owner.access_token, {
+                  ...creation,
+                  payload: { ...creation.payload, capacity: 5 },
+                })
+              ).status,
+              400,
+            );
+            assert.equal(
+              (
+                await api(
+                  "/tournaments",
+                  owner.access_token,
+                  creation,
+                  "https://external.invalid",
+                )
+              ).status,
+              403,
+            );
+            const created = await api(
+              "/tournaments",
+              owner.access_token,
+              creation,
+              "http://127.0.0.1:8081",
+            );
+            assert.equal(created.status, 200);
+            assert.equal(
+              created.headers.get("access-control-allow-origin"),
+              "http://127.0.0.1:8081",
+            );
+            const cloud = await created.json();
+            cloudIds.push(cloud.tournamentId);
+            assert.equal(
+              (
+                await (
+                  await api("/tournaments", owner.access_token, creation)
+                ).json()
+              ).tournamentId,
+              cloud.tournamentId,
+            );
+            assert.equal(
+              (
+                await api(
+                  `/tournaments/${cloud.tournamentId}`,
+                  outsider.access_token,
+                )
+              ).status,
+              403,
+            );
+            const list = await (
+              await api("/tournaments?limit=20", owner.access_token)
+            ).json();
+            assert.ok(
+              list.items.some(
+                (t: { tournamentId: string }) =>
+                  t.tournamentId === cloud.tournamentId,
+              ),
+            );
+            const outsideList = await (
+              await api("/tournaments", outsider.access_token)
+            ).json();
+            assert.ok(
+              !outsideList.items.some(
+                (t: { tournamentId: string }) =>
+                  t.tournamentId === cloud.tournamentId,
+              ),
+            );
+            const added = await api("/commands", owner.access_token, {
+              commandId: randomUUID(),
+              commandVersion: 1,
+              tournamentId: cloud.tournamentId,
+              expectedRevision: 1,
+              type: "add_participant",
+              payload: { displayName: "Pessoa real" },
+            });
+            assert.equal(added.status, 200);
+            const imported = await api(
+              "/tournament-imports",
+              owner.access_token,
+              {
+                commandId: randomUUID(),
+                commandVersion: 1,
+                type: "import_tournament",
+                payload: {
+                  installationId: randomUUID(),
+                  importId: randomUUID(),
+                  snapshotVersion: 1,
+                  snapshot: tournament,
+                },
+              },
+            );
+            assert.equal(imported.status, 200);
+            const copy = await imported.json();
+            cloudIds.push(copy.tournamentId);
+            assert.deepEqual(
+              (
+                await (
+                  await api(
+                    `/tournaments/${copy.tournamentId}`,
+                    owner.access_token,
+                  )
+                ).json()
+              ).tournament,
+              JSON.parse(JSON.stringify(tournament)),
+            );
+            const direct = await accountA
+              .from("participants")
+              .insert({
+                tournament_id: cloud.tournamentId,
+                domain_id: "injected",
+                display_name: "Injected",
+                position_index: 1,
+              });
+            assert.ok(direct.error, "Data API allowed competitive writes");
           } finally {
             if (child && child.exitCode === null) {
               const exited = new Promise<void>((resolve) =>
@@ -433,6 +590,23 @@ test(
               await operator.query(
                 "delete from public.tournaments where id=$1",
                 [tournamentId],
+              );
+            }
+            for (const id of cloudIds) {
+              for (const table of [
+                "tournament_imports",
+                "operation_receipts",
+                "participant_ids",
+                "command_receipts",
+                "tournament_events",
+              ])
+                await operator.query(
+                  `delete from matchmaking_private.${table} where tournament_id=$1`,
+                  [id],
+                );
+              await operator.query(
+                "delete from public.tournaments where id=$1",
+                [id],
               );
             }
             if (roleCreated) await operator.query(`drop role ${login}`);
@@ -520,17 +694,15 @@ test(
             insert.error,
             "Client profile provisioning was unexpectedly allowed",
           );
-          const tournament = await accountA
-            .from("tournaments")
-            .insert({
-              id: randomUUID(),
-              domain_id: "unauthorized",
-              owner_user_id: idA,
-              name: "Copa",
-              modality: "Futebol",
-              capacity: 4,
-              status: "draft",
-            });
+          const tournament = await accountA.from("tournaments").insert({
+            id: randomUUID(),
+            domain_id: "unauthorized",
+            owner_user_id: idA,
+            name: "Copa",
+            modality: "Futebol",
+            capacity: 4,
+            status: "draft",
+          });
           assert.ok(
             tournament.error,
             "Account profile privileges leaked tournament write access",

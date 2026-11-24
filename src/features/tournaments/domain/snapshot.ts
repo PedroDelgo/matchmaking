@@ -65,6 +65,7 @@ function text(
 function time(value: unknown): number {
   if (
     typeof value !== "string" ||
+    !/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) ||
     !Number.isFinite(Date.parse(value)) ||
     new Date(value).toISOString() !== value
   )
@@ -143,6 +144,7 @@ export function parseImportSnapshot(value: unknown): Tournament {
       roundIds.add(r.id);
       for (const id of array(r.matchIds, 15)) text(id);
     }
+    let totalPoints = 0;
     for (const item of array(t.matches, 15)) {
       const m = object(item, [
         "id",
@@ -168,7 +170,13 @@ export function parseImportSnapshot(value: unknown): Tournament {
         "nextMatchId",
       ])
         if (m[k] !== null) text(m[k]);
-      for (const k of ["score1", "score2"]) if (m[k] !== null) integer(m[k]);
+      for (const k of ["score1", "score2"])
+        if (m[k] !== null) {
+          integer(m[k]);
+          const score = m[k] as number;
+          if (score > Number.MAX_SAFE_INTEGER - totalPoints) invalid();
+          totalPoints += score;
+        }
     }
     for (const id of array(t.drawOrder, 16)) text(id);
     if (!validateTournament(t)) invalid();
@@ -191,4 +199,7 @@ function canonical(value: unknown): unknown {
 /** Object keys sorted, arrays preserved. This representation is versioned by the import contract. */
 export function canonicalSnapshot(tournament: Tournament): string {
   return JSON.stringify(canonical(tournament));
+}
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonical(value));
 }

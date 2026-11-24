@@ -30,4 +30,13 @@ begin
      has_table_privilege('matchmaking_command','public.tournament_members','INSERT,UPDATE,DELETE') then
     raise exception 'Command role can change access';
   end if;
+  foreach item in array array['participant_ids','operation_receipts','tournament_imports','tournament_events','command_receipts'] loop
+    if not (select relrowsecurity from pg_class where oid=('matchmaking_private.'||item)::regclass) or
+       has_table_privilege('authenticated','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
+       has_table_privilege('anon','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
+       has_table_privilege('service_role','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
+       has_table_privilege('matchmaking_command','matchmaking_private.'||item,'UPDATE,DELETE,TRUNCATE') then
+      raise exception 'Unsafe private metadata grants or RLS: %',item;
+    end if;
+  end loop;
 end $$;

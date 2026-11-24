@@ -28,26 +28,25 @@ export type ResultCommand = Base<
   "record_result" | "correct_result",
   ScorePayload
 >;
-// Contracts reserved for future implementation; the endpoint rejects them.
 export type TournamentCommand =
   | ResultCommand
   | Base<"add_participant", { displayName: string }>
   | Base<"remove_participant", { participantId: string }>
   | Base<"draw_bracket", Record<string, never>>;
 
-function object(value: unknown): Record<string, unknown> {
+export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new CommandError(400, "INVALID_COMMAND");
   return value as Record<string, unknown>;
 }
-function exact(value: Record<string, unknown>, fields: string[]) {
+export function exact(value: Record<string, unknown>, fields: string[]) {
   if (Object.keys(value).some((field) => !fields.includes(field)))
     throw new CommandError(400, "UNEXPECTED_FIELD");
 }
 function id(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 200;
 }
-export function parseCommand(value: unknown): ResultCommand {
+export function parseCommand(value: unknown): TournamentCommand {
   const c = object(value);
   exact(c, [
     "commandId",
@@ -68,9 +67,37 @@ export function parseCommand(value: unknown): ResultCommand {
     Number(c.expectedRevision) >= Number.MAX_SAFE_INTEGER
   )
     throw new CommandError(400, "INVALID_COMMAND");
+  const p = object(c.payload);
+  const base = {
+    commandId: c.commandId.toLowerCase(),
+    commandVersion: 1 as const,
+    tournamentId: c.tournamentId.toLowerCase(),
+    expectedRevision: Number(c.expectedRevision),
+  };
+  if (c.type === "add_participant") {
+    exact(p, ["displayName"]);
+    return {
+      ...base,
+      type: c.type,
+      payload: { displayName: parseName(p.displayName) },
+    };
+  }
+  if (c.type === "remove_participant") {
+    exact(p, ["participantId"]);
+    if (!id(p.participantId))
+      throw new CommandError(400, "INVALID_PARTICIPANT");
+    return {
+      ...base,
+      type: c.type,
+      payload: { participantId: p.participantId },
+    };
+  }
+  if (c.type === "draw_bracket") {
+    exact(p, []);
+    return { ...base, type: c.type, payload: {} };
+  }
   if (c.type !== "record_result" && c.type !== "correct_result")
     throw new CommandError(400, "UNSUPPORTED_COMMAND");
-  const p = object(c.payload);
   exact(p, ["matchId", "score1", "score2", "tieBreakWinnerId"]);
   if (
     !id(p.matchId) ||
@@ -98,6 +125,16 @@ export function parseCommand(value: unknown): ResultCommand {
     },
   };
 }
-export function commandHash(command: ResultCommand) {
+export function parseName(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    Array.from(value.trim()).length > 80 ||
+    /[\u0000-\u001f\u007f-\u009f]/.test(value)
+  )
+    throw new CommandError(400, "INVALID_NAME");
+  return value.trim();
+}
+export function commandHash(command: unknown) {
   return createHash("sha256").update(JSON.stringify(command)).digest("hex");
 }

@@ -60,7 +60,13 @@ try {
   const code = await new Promise<number>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      ["--import", "tsx", "--test", "backend/test/database.integration.ts"],
+      [
+        "--import",
+        "tsx",
+        "--test",
+        "backend/test/database.integration.ts",
+        "backend/test/cloud.integration.ts",
+      ],
       {
         env: {
           ...process.env,

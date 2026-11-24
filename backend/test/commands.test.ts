@@ -39,13 +39,11 @@ test("rejects actor/role injection, unsupported commands, unsafe scores and malf
     { ...command, payload: { ...command.payload, tieBreakWinnerId: "p1" } },
   ])
     assert.throws(() => parseCommand(bad));
-  assert.equal(
-    parseCommand({
-      ...command,
-      payload: { matchId: "m", score1: 0, score2: 0, tieBreakWinnerId: "p1" },
-    }).payload.score1,
-    0,
-  );
+  const tied = parseCommand({
+    ...command,
+    payload: { matchId: "m", score1: 0, score2: 0, tieBreakWinnerId: "p1" },
+  });
+  assert.ok("score1" in tied.payload && tied.payload.score1 === 0);
 });
 test("verifies signature, issuer, audience, expiry, subject and authenticated role", async () => {
   const keys = await generateKeyPair("ES256"),

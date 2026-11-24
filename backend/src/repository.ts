@@ -7,6 +7,99 @@ import type {
 } from "../../src/features/tournaments/domain/types";
 import { validateTournament } from "../../src/features/tournaments/domain/validation";
 
+export async function insertParticipant(
+  client: PoolClient,
+  id: string,
+  p: Participant,
+  position: number,
+) {
+  await client.query(
+    "insert into matchmaking_private.participant_ids(tournament_id,domain_id) values($1,$2)",
+    [id, p.id],
+  );
+  await client.query(
+    "insert into public.participants(tournament_id,domain_id,display_name,position_index,profile_id,created_at) values($1,$2,$3,$4,$5,$6)",
+    [id, p.id, p.displayName, position, p.profileId ?? null, p.createdAt],
+  );
+}
+export async function insertBracket(
+  client: PoolClient,
+  id: string,
+  t: Tournament,
+) {
+  for (const r of t.rounds)
+    await client.query(
+      "insert into public.rounds(tournament_id,domain_id,round_index,label,status) values($1,$2,$3,$4,$5)",
+      [id, r.id, r.index, r.label, r.status],
+    );
+  for (const m of t.matches)
+    await client.query(
+      `insert into public.matches(tournament_id,domain_id,round_index,position_index,participant1_id,participant2_id,score1,score2,winner_id,status,next_match_id) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        id,
+        m.id,
+        m.roundIndex,
+        m.positionIndex,
+        m.participant1Id,
+        m.participant2Id,
+        m.score1,
+        m.score2,
+        m.winnerId,
+        m.status,
+        m.nextMatchId,
+      ],
+    );
+}
+export async function insertTournament(
+  client: PoolClient,
+  id: string,
+  owner: string,
+  t: Tournament,
+) {
+  if (!validateTournament(t)) throw new Error("INVALID_AGGREGATE");
+  await client.query(
+    `insert into public.tournaments(id,domain_id,owner_user_id,name,modality,capacity,status,revision,draw_order,champion_id,created_at,started_at,completed_at) values($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12)`,
+    [
+      id,
+      t.id,
+      owner,
+      t.name,
+      t.modality,
+      t.capacity,
+      t.status,
+      t.drawOrder,
+      t.championId ?? null,
+      t.createdAt,
+      t.startedAt ?? null,
+      t.completedAt ?? null,
+    ],
+  );
+  for (const [i, p] of t.participants.entries())
+    await insertParticipant(client, id, p, i);
+  await insertBracket(client, id, t);
+}
+export async function saveParticipants(
+  client: PoolClient,
+  id: string,
+  before: Tournament,
+  next: Tournament,
+) {
+  for (const p of before.participants)
+    if (!next.participants.some((n) => n.id === p.id))
+      await client.query(
+        "delete from public.participants where tournament_id=$1 and domain_id=$2",
+        [id, p.id],
+      );
+  for (const [i, p] of next.participants.entries()) {
+    if (before.participants.some((n) => n.id === p.id))
+      await client.query(
+        "update public.participants set position_index=$3 where tournament_id=$1 and domain_id=$2",
+        [id, p.id, i],
+      );
+    else await insertParticipant(client, id, p, i);
+  }
+}
+
 const time = (value: Date | null) => value?.toISOString();
 export async function loadTournament(
   client: PoolClient,
@@ -103,7 +196,15 @@ export async function saveResult(
       [id, r.id, r.status],
     );
   await client.query(
-    `update public.tournaments set status=$2,champion_id=$3,completed_at=$4,revision=$5,updated_at=clock_timestamp() where id=$1`,
-    [id, t.status, t.championId ?? null, t.completedAt ?? null, revision],
+    `update public.tournaments set status=$2,champion_id=$3,completed_at=$4,revision=$5,started_at=$6,draw_order=$7,updated_at=clock_timestamp() where id=$1`,
+    [
+      id,
+      t.status,
+      t.championId ?? null,
+      t.completedAt ?? null,
+      revision,
+      t.startedAt ?? null,
+      t.drawOrder,
+    ],
   );
 }

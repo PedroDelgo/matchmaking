@@ -1,11 +1,20 @@
 import type { Pool } from "pg";
+import { randomUUID } from "node:crypto";
 import type { AuthenticatedActor } from "./auth";
 import { CommandError, commandHash, parseCommand } from "./commands";
-import { loadTournament, saveResult } from "./repository";
+import {
+  loadTournament,
+  saveResult,
+  saveParticipants,
+  insertBracket,
+} from "./repository";
 import {
   recordResult,
   getRanking,
   getTournamentStats,
+  addParticipant,
+  removeParticipant,
+  startTournament,
 } from "../../src/features/tournaments/engine/tournament";
 import type { Tournament } from "../../src/features/tournaments/domain/types";
 
@@ -63,28 +72,50 @@ export function createCommandService(
       if (Number(row.revision) !== command.expectedRevision)
         throw new CommandError(409, "REVISION_CONFLICT");
       const current = await loadTournament(client, command.tournamentId);
-      const before = current.matches.find(
-        (m) => m.id === command.payload.matchId,
-      );
-      if (!before) throw new CommandError(422, "MATCH_NOT_FOUND");
-      if (command.type === "record_result" && before.status === "completed")
-        throw new CommandError(409, "USE_CORRECT_RESULT");
-      if (command.type === "correct_result" && before.status !== "completed")
-        throw new CommandError(409, "RESULT_NOT_RECORDED");
+      const matchId =
+        "matchId" in command.payload ? command.payload.matchId : undefined;
+      const before = current.matches.find((m) => m.id === matchId);
       let next: Tournament;
       try {
-        const p = command.payload;
-        next = recordResult(
-          current,
-          p.matchId,
-          p.score1,
-          p.score2,
-          p.tieBreakWinnerId,
-        );
-      } catch {
+        if (command.type === "add_participant") {
+          next = addParticipant(current, command.payload.displayName);
+          // Keep the shared engine's rules; allocate remote identity independently of local suffixes.
+          next.participants[next.participants.length - 1].id =
+            `p-${randomUUID()}`;
+        } else if (command.type === "remove_participant")
+          next = removeParticipant(current, command.payload.participantId);
+        else if (command.type === "draw_bracket")
+          next = startTournament(current);
+        else {
+          if (!before) throw new CommandError(422, "MATCH_NOT_FOUND");
+          if (command.type === "record_result" && before.status === "completed")
+            throw new CommandError(409, "USE_CORRECT_RESULT");
+          if (
+            command.type === "correct_result" &&
+            before.status !== "completed"
+          )
+            throw new CommandError(409, "RESULT_NOT_RECORDED");
+          const p = command.payload;
+          next = recordResult(
+            current,
+            p.matchId,
+            p.score1,
+            p.score2,
+            p.tieBreakWinnerId,
+          );
+        }
+      } catch (error) {
+        if (error instanceof CommandError) throw error;
         throw new CommandError(422, "INVALID_DOMAIN_COMMAND");
       }
       const revision = Number(row.revision) + 1;
+      if (
+        command.type === "add_participant" ||
+        command.type === "remove_participant"
+      )
+        await saveParticipants(client, command.tournamentId, current, next);
+      if (command.type === "draw_bracket")
+        await insertBracket(client, command.tournamentId, next);
       await saveResult(client, command.tournamentId, next, revision);
       await hooks.afterSave?.();
       const response: CommandResponse = {
@@ -111,7 +142,10 @@ export function createCommandService(
           command.type,
           JSON.stringify({
             before,
-            after: next.matches.find((m) => m.id === before.id),
+            after: before
+              ? next.matches.find((m) => m.id === before.id)
+              : undefined,
+            payload: command.payload,
             invalidated,
           }),
         ],

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { exportJWK, generateKeyPair } from "jose";
+import { withLocalApi } from "./local-api.mjs";
 
 // Local operator tooling only. No values returned by status enter the Expo bundle
 // except the two explicitly public EXPO_PUBLIC_ fields below.
@@ -166,7 +167,7 @@ try {
     process.stdout.write(
       `Auth/API: ${status.API_URL}\nMailpit: ${status.MAILPIT_URL}\n`,
     );
-  } else if (mode === "test" || mode === "e2e" || mode === "db") {
+  } else if (["test", "e2e", "db", "api"].includes(mode)) {
     const status = localStatus();
     const publicEnv = publicEnvironment(status);
     const env = {
@@ -177,7 +178,7 @@ try {
         status.SECRET_KEY ?? status.SERVICE_ROLE_KEY,
       MATCHMAKING_TEST_DATABASE_URL: status.DB_URL,
     };
-    if (mode === "test" || mode === "db") {
+    if (mode === "test" || mode === "db" || mode === "api" || mode === "e2e") {
       run(
         "node_modules/esbuild/bin/esbuild",
         [
@@ -191,36 +192,45 @@ try {
         ],
         process.env,
       );
-      run(
-        "node_modules/tsx/dist/cli.mjs",
-        mode === "test"
-          ? ["--test", "backend/test/auth.integration.ts"]
-          : ["backend/test/run-database.ts"],
-        env,
-      );
-    } else {
-      // Only the test runner needs operator credentials, never the Expo build.
-      const buildEnv = { ...process.env, ...publicEnv };
-      for (const name of Object.keys(buildEnv))
-        if (
-          /^(MATCHMAKING_|DATABASE_URL$|SUPABASE_.*(?:KEY|SECRET|TOKEN|PASSWORD))/.test(
-            name,
-          )
-        )
-          delete buildEnv[name];
-      run(
-        "node_modules/expo/bin/cli",
-        ["export", "--platform", "web"],
-        buildEnv,
-      );
-      verifyPublicBundle(status);
-      run(
-        "node_modules/@playwright/test/cli.js",
-        ["test", ...process.argv.slice(3)],
-        env,
-      );
+      if (mode === "api")
+        await withLocalApi(status, () => {}, { manual: true });
+      else if (mode === "test" || mode === "db")
+        run(
+          "node_modules/tsx/dist/cli.mjs",
+          mode === "test"
+            ? ["--test", "backend/test/auth.integration.ts"]
+            : ["backend/test/run-database.ts"],
+          env,
+        );
     }
-  } else throw new Error("Use start, test, db or e2e.");
+    if (mode === "e2e")
+      await withLocalApi(status, async (api) => {
+        // Only the test runner needs operator credentials, never the Expo build.
+        const buildEnv = {
+          ...process.env,
+          ...publicEnv,
+          EXPO_PUBLIC_MATCHMAKING_API_URL: api,
+        };
+        for (const name of Object.keys(buildEnv))
+          if (
+            /^(MATCHMAKING_|DATABASE_URL$|SUPABASE_.*(?:KEY|SECRET|TOKEN|PASSWORD))/.test(
+              name,
+            )
+          )
+            delete buildEnv[name];
+        run(
+          "node_modules/expo/bin/cli",
+          ["export", "--platform", "web"],
+          buildEnv,
+        );
+        verifyPublicBundle(status);
+        run(
+          "node_modules/@playwright/test/cli.js",
+          ["test", ...process.argv.slice(3)],
+          { ...env, MATCHMAKING_API_URL: api },
+        );
+      });
+  } else throw new Error("Use start, test, db, api or e2e.");
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
   process.exitCode = 1;

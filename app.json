@@ -6,7 +6,12 @@
     "scheme": "matchmaking",
     "orientation": "default",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-router", "expo-font", "expo-status-bar"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-status-bar",
+      "expo-secure-store"
+    ],
     "web": {
       "bundler": "metro",
       "output": "single",

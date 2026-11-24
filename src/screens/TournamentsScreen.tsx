@@ -6,17 +6,32 @@ import { Text, Button, PageHeading, EmptyState, Field } from "../components/ui";
 import { TournamentGrid } from "../components/TournamentGrid";
 import { useAppStore } from "../store/useAppStore";
 import { colors } from "../theme/tokens";
+import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
+import { CloudListNotice } from "../components/CloudListNotice";
 export function TournamentsScreen() {
+  const remote = useRemoteTournaments(),
+    [source, setSource] = useState("all");
   const all = useAppStore((s) => s.tournaments),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState("");
   const list = all.filter(
     (t) =>
+      source !== "cloud" &&
       (filter === "all" || t.status === filter) &&
       t.name
         .toLocaleLowerCase("pt-BR")
         .includes(search.toLocaleLowerCase("pt-BR")),
   );
+  const cloud = remote.items.filter(
+    (t) =>
+      source !== "local" &&
+      (filter === "all" || t.status === filter) &&
+      t.name
+        .toLocaleLowerCase("pt-BR")
+        .includes(search.toLocaleLowerCase("pt-BR")),
+  );
+  const count = list.length + cloud.length,
+    total = all.length + remote.items.length;
   return (
     <Shell>
       <PageHeading
@@ -32,6 +47,21 @@ export function TournamentsScreen() {
         }
       />
       <View style={{ gap: 20, marginBottom: 28 }}>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {[
+            { id: "all", label: "Todas as origens" },
+            { id: "local", label: "Neste dispositivo" },
+            { id: "cloud", label: "Na nuvem" },
+          ].map((s) => (
+            <Button
+              key={s.id}
+              label={s.label}
+              variant={source === s.id ? "secondary" : "outline"}
+              accessibilityState={{ selected: source === s.id }}
+              onPress={() => setSource(s.id)}
+            />
+          ))}
+        </View>
         <Field
           label="Buscar campeonato"
           placeholder="Procure pelo nome"
@@ -55,33 +85,40 @@ export function TournamentsScreen() {
           ))}
         </View>
       </View>
-      {list.length ? (
+      <CloudListNotice />
+      {source === "cloud" && !remote.client ? (
+        <Text style={{ marginBottom: 20 }}>
+          Entre na sua conta para acessar seus campeonatos na nuvem. Os
+          campeonatos deste dispositivo continuam disponíveis.
+        </Text>
+      ) : null}
+      {count ? (
         <>
           <Text
             variant="caption"
             color={colors.muted}
             style={{ marginBottom: 16 }}
           >
-            {list.length} campeonato{list.length === 1 ? "" : "s"}
+            {count} campeonato{count === 1 ? "" : "s"}
           </Text>
-          <TournamentGrid tournaments={list} />
+          <TournamentGrid tournaments={list} summaries={cloud} />
         </>
       ) : (
         <EmptyState
           title={
-            all.length
+            total
               ? "Nenhum campeonato por aqui."
               : "Seu primeiro campeonato começa aqui."
           }
           description={
-            all.length
+            total
               ? "Tente outro nome ou filtro."
               : "Crie uma disputa e transforme a resenha em campeonato."
           }
-          actionLabel={all.length ? "Limpar filtros" : "Criar campeonato"}
+          actionLabel={total ? "Limpar filtros" : "Criar campeonato"}
           onAction={() =>
-            all.length
-              ? (setFilter("all"), setSearch(""))
+            total
+              ? (setFilter("all"), setSearch(""), setSource("all"))
               : router.push("/tournament/create")
           }
         />

@@ -1,18 +1,21 @@
 import React from "react";
-import { Redirect, useLocalSearchParams } from "expo-router";
-import { useAppStore } from "../../../src/store/useAppStore";
+import { Redirect } from "expo-router";
+import { useTournament } from "../../../src/features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../../../src/components/RemoteTournamentNotice";
 import { Shell } from "../../../src/components/Shell";
 import { MissingTournament } from "../../../src/components/tournament";
 export default function TournamentRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
+  const source = useTournament(),
+    t = source.tournament;
   return t ? (
-    <Redirect
-      href={`/tournament/${id}/${t.status === "draft" ? "lobby" : "bracket"}`}
-    />
+    <Redirect href={source.href(t.status === "draft" ? "lobby" : "bracket")} />
   ) : (
     <Shell>
-      <MissingTournament />
+      {source.cloud ? (
+        <RemoteTournamentNotice source={source} />
+      ) : (
+        <MissingTournament />
+      )}
     </Shell>
   );
 }

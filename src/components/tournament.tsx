@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   Text,
   Icon,
@@ -22,22 +22,45 @@ import { participantLabel } from "../features/tournaments/domain/labels";
 import { Motion } from "./Motion";
 import { motion } from "../theme/motion";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import type { TournamentSummary } from "../features/tournaments/remote/client";
 
 export const statusLabel = {
   draft: "Em preparação",
   active: "Em andamento",
   completed: "Concluído",
 };
-export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
-  const done = t.matches.filter((m) => m.status === "completed").length;
-  const next = t.matches.find((m) => m.status === "ready");
-  const name = (id: string | null) => participantLabel(t, id);
+export function TournamentCard({
+  tournament,
+  summary,
+}: {
+  tournament?: Tournament;
+  summary?: TournamentSummary;
+}) {
+  const t = (tournament ?? summary)!;
+  const done = tournament
+    ? tournament.matches.filter((m) => m.status === "completed").length
+    : summary!.completedMatches;
+  const next = tournament?.matches.find((m) => m.status === "ready"),
+    count = tournament?.participants.length ?? summary!.participantCount;
+  const champion = tournament?.championId
+    ? participantLabel(tournament, tournament.championId)
+    : summary?.champion;
+  const nextNames =
+    tournament && next
+      ? `${participantLabel(tournament, next.participant1Id)} × ${participantLabel(tournament, next.participant2Id)}`
+      : undefined;
   return (
     <InteractiveCard
       accessibilityRole="button"
       accessibilityLabel={`Abrir ${t.name}`}
-      accessibilityHint={`${statusLabel[t.status]}, ${t.participants.length} de ${t.capacity} participantes. ${t.status === "draft" ? "Abrir sala" : t.status === "completed" ? "Ver resultados" : "Continuar disputa"}.`}
-      onPress={() => router.push(`/tournament/${t.id}`)}
+      accessibilityHint={`${summary ? "Na nuvem" : "Neste dispositivo"}. ${statusLabel[t.status]}, ${count} de ${t.capacity} participantes. ${t.status === "draft" ? "Abrir sala" : t.status === "completed" ? "Ver resultados" : "Continuar disputa"}.`}
+      onPress={() =>
+        router.push(
+          summary
+            ? `/tournament/${summary.tournamentId}?source=cloud`
+            : `/tournament/${tournament!.id}`,
+        )
+      }
       style={[
         s.card,
         {
@@ -74,11 +97,17 @@ export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
       >
         {t.modality} · Mata-mata
       </Text>
+      <Text variant="caption" color={colors.muted} style={{ marginTop: 8 }}>
+        {summary ? "Na nuvem" : "Neste dispositivo"}
+        {summary
+          ? ` · atualizado em ${new Date(summary.updatedAt).toLocaleDateString("pt-BR")}`
+          : ""}
+      </Text>
       <View style={[s.row, { marginTop: 22, marginBottom: 10 }]}>
         <View style={[s.row, { flexShrink: 1 }]}>
           <Icon name="people-outline" size={15} />
           <Text variant="caption">
-            {t.participants.length}/{t.capacity} participantes
+            {count}/{t.capacity} participantes
           </Text>
         </View>
         <Text variant="caption">
@@ -95,19 +124,18 @@ export function TournamentCard({ tournament: t }: { tournament: Tournament }) {
         }
         color={t.status === "completed" ? colors.ink : colors.primary}
         value={
-          t.status === "draft"
-            ? t.participants.length / t.capacity
-            : done / (t.capacity - 1)
+          t.status === "draft" ? count / t.capacity : done / (t.capacity - 1)
         }
       />
       <View style={s.cardBottom}>
         <View style={{ flex: 1, gap: tokens.spacing.xs }}>
           <Text variant="caption" numberOfLines={1}>
-            {t.championId
-              ? `Campeão: ${name(t.championId)}`
-              : next
-                ? `${name(next.participant1Id)} × ${name(next.participant2Id)}`
-                : "Vamos reunir a galera?"}
+            {champion
+              ? `Campeão: ${champion}`
+              : (nextNames ??
+                (t.status === "draft"
+                  ? "Vamos reunir a galera?"
+                  : "Acompanhe a disputa"))}
           </Text>
           <Text
             variant="label"
@@ -154,6 +182,7 @@ export function MatchCard({
   compact?: boolean;
 }) {
   const reduced = useReducedMotion();
+  const params = useLocalSearchParams<{ id?: string; source?: string }>();
   const pressScale = useSharedValue(1);
   const feedback = useAnimatedStyle(() => ({
     transform: [{ scale: pressScale.get() }],
@@ -164,7 +193,11 @@ export function MatchCard({
       accessibilityRole="button"
       accessibilityLabel={`Partida ${m.positionIndex + 1}, ${t.rounds[m.roundIndex]?.label}`}
       accessibilityHint={`${participantLabel(t, m.participant1Id)} contra ${participantLabel(t, m.participant2Id)}.${m.status === "completed" ? ` Placar ${m.score1} a ${m.score2}. Vencedor: ${participantLabel(t, m.winnerId)}.` : m.status === "ready" ? " Registrar placar." : " Aguardando resultados anteriores."}`}
-      onPress={() => router.push(`/match/${m.id}?tournamentId=${t.id}`)}
+      onPress={() =>
+        router.push(
+          `/match/${encodeURIComponent(m.id)}?tournamentId=${params.source === "cloud" ? params.id : t.id}${params.source === "cloud" ? "&source=cloud" : ""}`,
+        )
+      }
       onPressIn={() =>
         pressScale.set(
           reduced
@@ -282,6 +315,7 @@ export function TournamentTabs({
   active: "lobby" | "bracket" | "stats";
 }) {
   const compact = useWindowDimensions().width < tokens.breakpoints.compact;
+  const { source } = useLocalSearchParams<{ source?: string }>();
   return (
     <View style={s.tabs}>
       {(
@@ -305,7 +339,11 @@ export function TournamentTabs({
           accessibilityLabel={tab.label}
           accessibilityState={{ selected: active === tab.route }}
           aria-selected={active === tab.route}
-          onPress={() => router.replace(`/tournament/${id}/${tab.route}`)}
+          onPress={() =>
+            router.replace(
+              `/tournament/${id}/${tab.route}${source === "cloud" ? "?source=cloud" : ""}`,
+            )
+          }
           style={[
             s.tab,
             compact && {

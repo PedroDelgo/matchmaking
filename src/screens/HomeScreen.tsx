@@ -16,6 +16,8 @@ import { useAppStore } from "../store/useAppStore";
 import { colors, fonts, typography } from "../theme/tokens";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
+import { CloudListNotice } from "../components/CloudListNotice";
 
 function BracketArtwork() {
   return (
@@ -134,13 +136,20 @@ function BracketArtwork() {
   );
 }
 export function HomeScreen() {
+  const remote = useRemoteTournaments(),
+    [source, setSource] = useState("all");
   const reduced = useReducedMotion();
   const tournaments = useAppStore((s) => s.tournaments),
     profile = useAppStore((s) => s.profile);
   const [join, setJoin] = useState(false),
     { desktop: wide, tablet, compact } = useResponsiveLayout();
-  const ongoing = tournaments.filter((t) => t.status === "active").length,
-    finished = tournaments.filter((t) => t.status === "completed").length;
+  const total = tournaments.length + remote.items.length;
+  const ongoing = [...tournaments, ...remote.items].filter(
+      (t) => t.status === "active",
+    ).length,
+    finished = [...tournaments, ...remote.items].filter(
+      (t) => t.status === "completed",
+    ).length;
   return (
     <Shell>
       <Motion>
@@ -258,7 +267,7 @@ export function HomeScreen() {
       >
         {[
           {
-            n: tournaments.length,
+            n: total,
             label: "Campeonatos",
             icon: "trophy-outline" as const,
           },
@@ -295,11 +304,75 @@ export function HomeScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <SectionTitle
             title="Meus campeonatos"
-            action={tournaments.length ? "Ver todos" : undefined}
+            action={total ? "Ver todos" : undefined}
             onAction={() => router.navigate("/tournaments")}
           />
-          {tournaments.length ? (
-            <TournamentGrid tournaments={tournaments.slice(0, 3)} />
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 20,
+            }}
+          >
+            {[
+              { id: "all", label: "Todas as origens" },
+              { id: "local", label: "Neste dispositivo" },
+              { id: "cloud", label: "Na nuvem" },
+            ].map((s) => (
+              <Button
+                key={s.id}
+                label={s.label}
+                variant={source === s.id ? "secondary" : "outline"}
+                accessibilityState={{ selected: source === s.id }}
+                onPress={() => setSource(s.id)}
+              />
+            ))}
+          </View>
+          <CloudListNotice />
+          {source === "cloud" && remote.items.length === 0 ? (
+            <EmptyState
+              title="Seus campeonatos na nuvem aparecem aqui."
+              description={
+                remote.client
+                  ? "Crie uma disputa na sua conta ou salve uma cópia de um campeonato deste dispositivo."
+                  : "Entre na sua conta para guardar e recuperar suas disputas."
+              }
+              actionLabel={
+                remote.client ? "Criar campeonato" : "Entrar na minha conta"
+              }
+              onAction={() =>
+                router.push(
+                  remote.client ? "/tournament/create" : "/auth/sign-in",
+                )
+              }
+            />
+          ) : source === "local" && tournaments.length === 0 ? (
+            <EmptyState
+              title="Nenhum campeonato neste dispositivo."
+              description="Você pode criar uma disputa local sem conta e sem internet."
+              actionLabel="Criar campeonato"
+              onAction={() => router.push("/tournament/create")}
+            />
+          ) : total ? (
+            <TournamentGrid
+              tournaments={
+                source === "cloud"
+                  ? []
+                  : tournaments.slice(
+                      0,
+                      source === "all" && remote.items.length ? 2 : 3,
+                    )
+              }
+              summaries={
+                source === "local"
+                  ? []
+                  : remote.items.slice(
+                      0,
+                      source === "all" && tournaments.length ? 1 : 3,
+                    )
+              }
+            />
           ) : (
             <EmptyState
               title="Seu primeiro campeonato começa aqui."
@@ -309,7 +382,7 @@ export function HomeScreen() {
             />
           )}
         </View>
-        {!tournaments.length && (
+        {!total && (
           <View style={{ width: wide ? 320 : undefined, gap: 20 }}>
             <Text variant="title" style={{ marginBottom: -2 }}>
               Da ideia ao pódio

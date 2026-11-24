@@ -26,14 +26,25 @@ import { useAppStore } from "../store/useAppStore";
 import { useMotionPreference } from "../hooks/useReducedMotion";
 import { motion } from "../theme/motion";
 import { colors, tokens } from "../theme/tokens";
+import { useTournament } from "../features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
+import { ImportTournament } from "../components/ImportTournament";
+import { useAuth } from "../features/auth/AuthProvider";
 
 export function LobbyScreen() {
   const { id, created } = useLocalSearchParams<{
     id: string;
     created?: string;
   }>();
-  const t = useAppStore((s) => s.tournaments.find((t) => t.id === id)),
-    profile = useAppStore((s) => s.profile);
+  const source = useTournament(),
+    t = source.tournament,
+    auth = useAuth();
+  const localProfile = useAppStore((s) => s.profile),
+    profile = source.cloud
+      ? { id: "", nickname: auth.profile?.nickname ?? "Sua conta" }
+      : localProfile;
+  const operationRef = useRef(false),
+    suffix = source.cloud ? "?source=cloud" : "";
   const [name, setName] = useState(""),
     [error, setError] = useState(""),
     [removeId, setRemoveId] = useState<string | null>(null),
@@ -57,12 +68,16 @@ export function LobbyScreen() {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     setDrawing(false);
-    router.replace(`/tournament/${id}/bracket`);
-  }, [id]);
+    router.replace(`/tournament/${id}/bracket${suffix}`);
+  }, [id, suffix]);
   if (!t)
     return (
       <Shell>
-        <MissingTournament />
+        {source.cloud ? (
+          <RemoteTournamentNotice source={source} />
+        ) : (
+          <MissingTournament />
+        )}
       </Shell>
     );
   const full = t.participants.length === t.capacity,
@@ -74,25 +89,29 @@ export function LobbyScreen() {
         p.displayName.toLocaleLowerCase("pt-BR") ===
         name.trim().toLocaleLowerCase("pt-BR"),
     );
-  const add = (n: string, profileId?: string) => {
+  const add = async (n: string, profileId?: string) => {
+    if (operationRef.current) return;
+    operationRef.current = true;
     try {
-      useAppStore.getState().add(id, n, profileId);
+      await source.add(n, profileId);
       setName("");
       setError("");
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      operationRef.current = false;
     }
   };
-  const start = () => {
+  const start = async () => {
     // Read the current store as well as the ref: reduced motion may finish
     // synchronously before a second activation of the previous render arrives.
-    const current = useAppStore
-      .getState()
-      .tournaments.find((item) => item.id === id);
+    const current = source.cloud
+      ? t
+      : useAppStore.getState().tournaments.find((item) => item.id === id);
     if (drawingRef.current || current?.status !== "draft") return;
     drawingRef.current = true;
     try {
-      useAppStore.getState().start(id);
+      await source.start();
       if (ready && reduced) finishDrawing();
       else setDrawing(true);
     } catch (e) {
@@ -102,6 +121,13 @@ export function LobbyScreen() {
   };
   return (
     <Shell>
+      <RemoteTournamentNotice source={source} />
+      {!source.cloud ? (
+        <ImportTournament
+          key={`${t.id}:${source.client?.userId ?? "signed-out"}`}
+          tournament={t}
+        />
+      ) : null}
       <PageHeading
         eyebrow={`${t.modality} / MATA-MATA`}
         title={t.name}
@@ -200,13 +226,13 @@ export function LobbyScreen() {
                       setError("");
                     }}
                     onSubmitEditing={() => add(name)}
-                    editable={!full}
+                    editable={!full && !source.busy}
                     containerStyle={{ flex: 1 }}
                   />
                   <Button
                     label="Adicionar"
                     icon="add"
-                    disabled={full}
+                    disabled={full || source.busy}
                     onPress={() => add(name)}
                   />
                 </View>
@@ -214,17 +240,19 @@ export function LobbyScreen() {
                   <Notice message="Esse apelido já está na sala. Você pode adicionar outro jogador com o mesmo nome; cada um terá sua própria identificação." />
                 )}
                 {!!error && <Notice tone="error" message={error} />}
-                <Button
-                  label={
-                    hasProfile
-                      ? "Você está na disputa ✓"
-                      : "Eu também vou jogar"
-                  }
-                  variant="outline"
-                  icon="person-add-outline"
-                  disabled={hasProfile || full}
-                  onPress={() => add(profile.nickname, profile.id)}
-                />
+                {!source.cloud ? (
+                  <Button
+                    label={
+                      hasProfile
+                        ? "Você está na disputa ✓"
+                        : "Eu também vou jogar"
+                    }
+                    variant="outline"
+                    icon="person-add-outline"
+                    disabled={hasProfile || full}
+                    onPress={() => add(profile.nickname, profile.id)}
+                  />
+                ) : null}
               </>
             )}
             <View style={{ gap: 8 }}>
@@ -305,7 +333,7 @@ export function LobbyScreen() {
               })}
             </View>
           </Panel>
-          {t.status === "draft" && (
+          {t.status === "draft" && !source.cloud && (
             <Panel style={{ gap: 12 }}>
               <Chip label="Ferramenta de demonstração" />
               <Text color={colors.muted}>
@@ -351,11 +379,11 @@ export function LobbyScreen() {
                 t.status === "draft" ? "Sortear confrontos" : "Ver chaveamento"
               }
               icon="shuffle"
-              disabled={t.status === "draft" && !full}
+              disabled={source.busy || (t.status === "draft" && !full)}
               onPress={() =>
                 t.status === "draft"
                   ? start()
-                  : router.push(`/tournament/${id}/bracket`)
+                  : router.push(source.href("bracket"))
               }
             />
             {t.status === "draft" && !full && (
@@ -401,12 +429,14 @@ export function LobbyScreen() {
               dispositivo.
             </Text>
           </Panel>
-          <Button
-            label="Excluir campeonato"
-            variant="ghost"
-            icon="trash-outline"
-            onPress={() => setDeleting(true)}
-          />
+          {!source.cloud ? (
+            <Button
+              label="Excluir campeonato"
+              variant="ghost"
+              icon="trash-outline"
+              onPress={() => setDeleting(true)}
+            />
+          ) : null}
         </View>
       </View>
       <ConfirmDialog
@@ -416,9 +446,19 @@ export function LobbyScreen() {
         confirmLabel="Remover"
         destructive
         onCancel={() => setRemoveId(null)}
-        onConfirm={() => {
-          if (removeId) useAppStore.getState().remove(id, removeId);
-          setRemoveId(null);
+        onConfirm={async () => {
+          if (operationRef.current) return;
+          operationRef.current = true;
+          try {
+            if (removeId) await source.remove(removeId);
+            setRemoveId(null);
+            setError("");
+          } catch (e) {
+            setError((e as Error).message);
+            setRemoveId(null);
+          } finally {
+            operationRef.current = false;
+          }
         }}
       />
       <ConfirmDialog

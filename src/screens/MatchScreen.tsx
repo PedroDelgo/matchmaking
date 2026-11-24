@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, TextInput, useWindowDimensions, Keyboard } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Shell } from "../components/Shell";
@@ -16,6 +16,9 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { colors, fonts, tokens } from "../theme/tokens";
 import { participantLabel } from "../features/tournaments/domain/labels";
+import { useTournament } from "../features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
+import type { Tournament } from "../features/tournaments/domain/types";
 
 function ScoreControl({
   name,
@@ -98,12 +101,48 @@ export function MatchScreen() {
     id: string;
     tournamentId: string;
   }>();
-  const t = useAppStore((s) =>
-      s.tournaments.find(
-        (t) => t.id === tournamentId || t.matches.some((m) => m.id === id),
-      ),
+  const local = useAppStore((s) =>
+    s.tournaments.find(
+      (t) => t.id === tournamentId || t.matches.some((m) => m.id === id),
     ),
-    m = t?.matches.find((m) => m.id === id);
+  );
+  const source = useTournament(tournamentId ?? local?.id),
+    t = source.tournament;
+  if (!t)
+    return (
+      <Shell>
+        {source.cloud ? (
+          <RemoteTournamentNotice source={source} />
+        ) : (
+          <EmptyState
+            title="Essa partida não está disponível."
+            description="Ela pode ter sido removida ou o campeonato não existe neste dispositivo."
+            actionLabel="Ver meus torneios"
+            onAction={() => router.replace("/tournaments")}
+          />
+        )}
+      </Shell>
+    );
+  return (
+    <MatchContent
+      key={`${source.cloud ? source.client?.userId : "local"}:${source.id}:${id}`}
+      t={t}
+      id={id}
+      source={source}
+    />
+  );
+}
+function MatchContent({
+  t,
+  id,
+  source,
+}: {
+  t: Tournament;
+  id: string;
+  source: ReturnType<typeof useTournament>;
+}) {
+  const m = t.matches.find((m) => m.id === id),
+    submitting = useRef(false);
   const [a, setA] = useState(String(m?.score1 ?? 0)),
     [b, setB] = useState(String(m?.score2 ?? 0)),
     [tie, setTie] = useState<string | undefined>(
@@ -160,43 +199,42 @@ export function MatchScreen() {
       return "Selecione quem venceu o desempate.";
     return "";
   };
-  const save = () => {
+  const save = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
     try {
-      useAppStore
-        .getState()
-        .score(
-          t.id,
-          m.id,
-          Number(a),
-          Number(b),
-          Number(a) === Number(b) ? tie : undefined,
-        );
+      const updated = await source.score(
+        m.id,
+        Number(a),
+        Number(b),
+        Number(a) === Number(b) ? tie : undefined,
+      );
       setConfirm(false);
       setEditing(false);
       setError("");
       setSaved(true);
-      const updated = useAppStore
-        .getState()
-        .tournaments.find((x) => x.id === t.id)!;
       if (
         updated.status === "completed" &&
         m.roundIndex === t.rounds.length - 1
       )
-        router.replace(`/tournament/${t.id}/champion`);
+        router.replace(source.href("champion"));
     } catch (e) {
       setError((e as Error).message);
       setConfirm(false);
+    } finally {
+      submitting.current = false;
     }
   };
   return (
     <Shell>
+      <RemoteTournamentNotice source={source} />
       <View style={{ maxWidth: 820, width: "100%", alignSelf: "center" }}>
         <Button
           label="Voltar ao chaveamento"
           variant="ghost"
           icon="arrow-back"
           style={{ alignSelf: "flex-start", marginBottom: 20 }}
-          onPress={() => router.dismissTo(`/tournament/${t.id}/bracket`)}
+          onPress={() => router.dismissTo(source.href("bracket"))}
         />
         <PageHeading
           eyebrow={`${t.name} / ${t.rounds[m.roundIndex]?.label}`}
@@ -277,7 +315,7 @@ export function MatchScreen() {
             title="Os rivais ainda estão a caminho."
             description="Conclua as partidas anteriores para definir este confronto."
             actionLabel="Ver chaveamento"
-            onAction={() => router.dismissTo(`/tournament/${t.id}/bracket`)}
+            onAction={() => router.dismissTo(source.href("bracket"))}
           />
         ) : (
           <>
@@ -428,9 +466,7 @@ export function MatchScreen() {
                   <Button
                     label="Continuar no chaveamento"
                     icon="arrow-forward"
-                    onPress={() =>
-                      router.dismissTo(`/tournament/${t.id}/bracket`)
-                    }
+                    onPress={() => router.dismissTo(source.href("bracket"))}
                   />
                   <Button
                     label="Corrigir resultado"
@@ -452,6 +488,7 @@ export function MatchScreen() {
                 <>
                   <Button
                     label="Confirmar resultado"
+                    disabled={source.busy}
                     icon="checkmark"
                     onPress={() => {
                       const e = validate();
@@ -480,7 +517,9 @@ export function MatchScreen() {
               color={colors.muted}
               style={{ marginTop: 16, textAlign: "center" }}
             >
-              Placar local. Nenhum resultado é publicado automaticamente.
+              {source.cloud
+                ? "Placar na nuvem. O resultado só é salvo após a confirmação do servidor."
+                : "Placar local. Nenhum resultado é publicado automaticamente."}
             </Text>
           </>
         )}

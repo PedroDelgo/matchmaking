@@ -8,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { router, usePathname } from "expo-router";
+import { router, usePathname, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text, Icon, Button, Avatar } from "./ui";
 import { colors, fonts, tokens } from "../theme/tokens";
@@ -178,6 +178,7 @@ export function AppHeader() {
 }
 
 export function ScreenContainer({ children }: { children: ReactNode }) {
+  const cloud = useLocalSearchParams<{ source?: string }>().source === "cloud";
   const { desktop, padding } = useResponsiveLayout(),
     insets = useSafeAreaInsets(),
     error = useAppStore((s) => s.storageError);
@@ -203,10 +204,15 @@ export function ScreenContainer({ children }: { children: ReactNode }) {
           <Text variant="caption" color={colors.muted}>
             Feito para a disputa. Pensado para os amigos.
           </Text>
-          <Text variant="caption" color={error ? colors.danger : colors.muted}>
-            {error
-              ? "Alterações apenas nesta sessão"
-              : "Armazenamento local · Neste dispositivo"}
+          <Text
+            variant="caption"
+            color={error && !cloud ? colors.danger : colors.muted}
+          >
+            {cloud
+              ? "Na nuvem · confirmação pelo servidor"
+              : error
+                ? "Alterações apenas nesta sessão"
+                : "Armazenamento local · Neste dispositivo"}
           </Text>
         </View>
       </View>

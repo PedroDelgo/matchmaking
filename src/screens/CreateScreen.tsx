@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, BackHandler, Keyboard, Platform } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Shell } from "../components/Shell";
@@ -19,8 +19,53 @@ import { useAppStore } from "../store/useAppStore";
 import { modalityIcon } from "../components/tournament";
 import { colors, fonts } from "../theme/tokens";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
+import { useAuth } from "../features/auth/AuthProvider";
+import { getTournamentApiUrl } from "../features/tournaments/remote/client";
+import { localStorageAdapter } from "../store/storage";
 
 export function CreateScreen() {
+  const { client } = useRemoteTournaments(),
+    auth = useAuth();
+  const [destination, setDestination] = useState("local"),
+    [pendingCreation, setPendingCreation] = useState(false),
+    submitting = useRef(false);
+  useEffect(() => {
+    let active = true;
+    if (client)
+      void client
+        .hasPendingCreation()
+        .then((value) => {
+          if (active) setPendingCreation(value);
+        })
+        .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [client]);
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve(
+      localStorageAdapter.getItem("matchmaking-create-destination-v1"),
+    )
+      .then((value) => {
+        if (active && value === "cloud") setDestination("cloud");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+  const choose = (value: string) => {
+    setDestination(value);
+    void Promise.resolve(
+      localStorageAdapter.setItem("matchmaking-create-destination-v1", value),
+    ).catch(() =>
+      setError(
+        "Não foi possível guardar sua escolha. O rascunho continua disponível.",
+      ),
+    );
+  };
   const draft = useAppStore((s) => s.draft),
     update = useAppStore((s) => s.updateDraft),
     create = useAppStore((s) => s.create),
@@ -45,7 +90,7 @@ export function CreateScreen() {
         },
       );
       return () => subscription.remove();
-    }, [update]),
+    }, [update, setError]),
   );
   const validate = () => {
     if (!draft.name.trim()) return "Dê um nome ao campeonato.";
@@ -62,7 +107,8 @@ export function CreateScreen() {
       update({ step: Math.min(2, draft.step + 1) });
     }
   };
-  const submit = () => {
+  const submit = async () => {
+    if (submitting.current) return;
     const e = validate();
     if (e) {
       setError(e);
@@ -70,13 +116,42 @@ export function CreateScreen() {
       update({ step: 0 });
       return;
     }
+    if (destination === "cloud" && !client) {
+      setError(
+        getTournamentApiUrl()
+          ? "Entre na sua conta para continuar. Seu rascunho está salvo."
+          : "A API de campeonatos ainda não foi configurada. Seu rascunho está salvo.",
+      );
+      return;
+    }
+    submitting.current = true;
     setBusy(true);
     try {
-      const id = create();
-      router.replace(`/tournament/${id}/lobby?created=1`);
+      if (destination === "cloud") {
+        const result = await client!.create({
+          name: draft.name,
+          modality:
+            draft.modality === "Outro" ? draft.customModality : draft.modality,
+          capacity: draft.capacity,
+        });
+        reset();
+        router.replace(
+          `/tournament/${result.tournamentId}/lobby?created=1&source=cloud`,
+        );
+      } else {
+        const id = create();
+        router.replace(`/tournament/${id}/lobby?created=1`);
+      }
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
+      if (client)
+        void client
+          .hasPendingCreation()
+          .then(setPendingCreation)
+          .catch(() => {});
+    } finally {
+      submitting.current = false;
     }
   };
   return (
@@ -366,9 +441,75 @@ export function CreateScreen() {
                   <Text style={{ fontFamily: fonts.semibold }}>{b}</Text>
                 </View>
               ))}
-              <Notice message="O campeonato será salvo neste dispositivo. Você poderá adicionar os participantes na próxima tela." />
+              <View style={{ gap: 12 }}>
+                <Text variant="heading">Onde deseja salvar?</Text>
+                <View
+                  style={{ flexDirection: compact ? "column" : "row", gap: 12 }}
+                >
+                  <SelectionCard
+                    label="Neste dispositivo"
+                    icon="phone-portrait-outline"
+                    selected={destination === "local"}
+                    onPress={() => choose("local")}
+                    style={{ flex: 1 }}
+                  />
+                  <SelectionCard
+                    label="Na minha conta"
+                    icon="cloud-outline"
+                    selected={destination === "cloud"}
+                    onPress={() => choose("cloud")}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+                <Notice
+                  message={
+                    destination === "local"
+                      ? "O campeonato será salvo neste dispositivo. Sem login e disponível offline."
+                      : "O campeonato será salvo no servidor da sua conta e poderá ser aberto em outras sessões. A criação depende de confirmação online."
+                  }
+                />
+                {destination === "cloud" && !auth.session ? (
+                  <Button
+                    label="Entrar e continuar criação"
+                    variant="outline"
+                    onPress={() => router.push("/auth/sign-in?returnTo=create")}
+                  />
+                ) : null}
+                {destination === "cloud" && auth.session ? (
+                  <Text variant="caption">
+                    Conta: {auth.profile?.nickname ?? "Sua conta"}
+                  </Text>
+                ) : null}
+              </View>
             </Panel>
           )}
+          {pendingCreation && client ? (
+            <View style={{ gap: 12, marginTop: 16 }}>
+              <Notice message="Há uma criação sem confirmação. Retome os dados da tentativa anterior para conferir o campeonato antes de criar outro." />
+              <Button
+                label="Retomar criação pendente"
+                variant="outline"
+                loading={busy}
+                onPress={async () => {
+                  if (submitting.current) return;
+                  submitting.current = true;
+                  setBusy(true);
+                  try {
+                    const r = await client.retryCreation();
+                    reset();
+                    router.replace(
+                      `/tournament/${r.tournamentId}/lobby?source=cloud`,
+                    );
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    submitting.current = false;
+                    setBusy(false);
+                  }
+                }}
+              />
+            </View>
+          ) : null}
           {!!error && (
             <View style={{ marginTop: 16 }}>
               <Notice tone="error" message={error} />

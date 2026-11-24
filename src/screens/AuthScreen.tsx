@@ -45,6 +45,7 @@ const copy: Record<
 
 export function AuthScreen({ mode }: { mode: AuthMode }) {
   const auth = useAuth();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -109,7 +110,10 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
     try {
       if (mode === "sign-in") {
         await auth.signIn(normalizedEmail, password);
-        if (mounted.current) router.replace("/profile");
+        if (mounted.current)
+          router.replace(
+            returnTo === "create" ? "/tournament/create" : "/profile",
+          );
       } else if (mode === "sign-up") {
         const result = await auth.signUp(normalizedEmail, password);
         if (mounted.current) {

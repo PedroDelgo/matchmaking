@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import { Text, Button, Panel, EmptyState, Notice } from "../components/ui";
 import { ChampionReveal } from "../components/ChampionReveal";
 import { MissingTournament } from "../components/tournament";
-import { useAppStore } from "../store/useAppStore";
+import { useTournament } from "../features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
 import { getRanking } from "../features/tournaments/engine/tournament";
 import { shareText } from "../utils/share";
 import { colors } from "../theme/tokens";
 
 export function ChampionScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>(),
-    t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
+  const source = useTournament(),
+    t = source.tournament;
   const [feedback, setFeedback] = useState(""),
     [shareFallback, setShareFallback] = useState(false),
     [sharing, setSharing] = useState(false);
@@ -27,7 +28,11 @@ export function ChampionScreen() {
   if (!t)
     return (
       <Shell>
-        <MissingTournament />
+        {source.cloud ? (
+          <RemoteTournamentNotice source={source} />
+        ) : (
+          <MissingTournament />
+        )}
       </Shell>
     );
   const champion = t.participants.find((p) => p.id === t.championId),
@@ -39,7 +44,7 @@ export function ChampionScreen() {
           title="O troféu ainda está em jogo."
           description="Conclua a final para descobrir quem leva esse campeonato."
           actionLabel="Ver chaveamento"
-          onAction={() => router.dismissTo(`/tournament/${id}/bracket`)}
+          onAction={() => router.dismissTo(source.href("bracket"))}
         />
       </Shell>
     );
@@ -58,6 +63,7 @@ export function ChampionScreen() {
   const message = `${champion.displayName} venceu ${t.name} no Matchmaking! ${entry.wins} vitórias e ${entry.pointsFor} pontos na disputa de ${t.modality}.`;
   return (
     <Shell>
+      <RemoteTournamentNotice source={source} />
       <ChampionReveal
         key={revealKey}
         runKey={revealKey}
@@ -117,7 +123,7 @@ export function ChampionScreen() {
               label="Ver todos os resultados"
               variant="outline"
               style={{ backgroundColor: colors.white }}
-              onPress={() => router.dismissTo(`/tournament/${id}/bracket`)}
+              onPress={() => router.dismissTo(source.href("bracket"))}
             />
           </>
         }

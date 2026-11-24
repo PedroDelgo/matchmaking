@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, ScrollView } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
   Text,
@@ -11,7 +11,8 @@ import {
   EmptyState,
 } from "../components/ui";
 import { TournamentTabs, MissingTournament } from "../components/tournament";
-import { useAppStore } from "../store/useAppStore";
+import { useTournament } from "../features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
 import {
   getRanking,
   getTournamentStats,
@@ -19,13 +20,18 @@ import {
 import { colors, fonts } from "../theme/tokens";
 import { participantLabel } from "../features/tournaments/domain/labels";
 export function StatsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>(),
-    t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
+  const source = useTournament(),
+    { id } = source,
+    t = source.tournament;
   const [selected, setSelected] = useState<string | null>(null);
   if (!t)
     return (
       <Shell>
-        <MissingTournament />
+        {source.cloud ? (
+          <RemoteTournamentNotice source={source} />
+        ) : (
+          <MissingTournament />
+        )}
       </Shell>
     );
   const stats = getTournamentStats(t),
@@ -33,6 +39,7 @@ export function StatsScreen() {
     player = ranking.find((p) => p.participantId === selected);
   return (
     <Shell>
+      <RemoteTournamentNotice source={source} />
       <PageHeading
         eyebrow={`${t.modality} / MATA-MATA`}
         title={t.name}
@@ -74,7 +81,7 @@ export function StatsScreen() {
           title="A disputa ainda não começou."
           description="Adicione jogadores para acompanhar suas estatísticas."
           actionLabel="Ir para a sala"
-          onAction={() => router.replace(`/tournament/${id}/lobby`)}
+          onAction={() => router.replace(source.href("lobby"))}
         />
       ) : (
         <>

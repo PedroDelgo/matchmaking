@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View } from "react-native";
+import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
   Text,
@@ -18,6 +19,7 @@ import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { expo } from "../../app.json";
 import { AccountPanel } from "../components/AccountPanel";
 export function ProfileScreen() {
+  const draft = useAppStore((s) => s.draft);
   const profile = useAppStore((s) => s.profile),
     tournaments = useAppStore((s) => s.tournaments),
     update = useAppStore((s) => s.updateProfile);
@@ -47,6 +49,14 @@ export function ProfileScreen() {
         description="Um apelido, muitas disputas para contar."
       />
       <AccountPanel />
+      {draft.name.trim() ? (
+        <Button
+          label="Continuar criação do campeonato"
+          variant="outline"
+          style={{ marginBottom: 24 }}
+          onPress={() => router.push("/tournament/create")}
+        />
+      ) : null}
       <View style={{ flexDirection: wide ? "row" : "column", gap: 24 }}>
         <Panel style={{ flex: 1, gap: 24 }}>
           <Text variant="heading">Seu perfil neste dispositivo</Text>

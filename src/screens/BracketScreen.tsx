@@ -16,7 +16,9 @@ import {
   TournamentTabs,
   MissingTournament,
 } from "../components/tournament";
-import { useAppStore } from "../store/useAppStore";
+import { useTournament } from "../features/tournaments/useTournament";
+import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
+import { ImportTournament } from "../components/ImportTournament";
 import { colors, tokens } from "../theme/tokens";
 import type { Match, Tournament } from "../features/tournaments/domain/types";
 
@@ -198,7 +200,8 @@ function FullBracket({ t }: { t: Tournament }) {
 
 export function BracketScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const t = useAppStore((s) => s.tournaments.find((t) => t.id === id));
+  const source = useTournament(),
+    t = source.tournament;
   const { width, fontScale } = useWindowDimensions();
   const wide = width >= tokens.breakpoints.desktop && fontScale < 1.4;
   const [selection, setSelection] = useState<{
@@ -210,7 +213,11 @@ export function BracketScreen() {
   if (!t)
     return (
       <Shell>
-        <MissingTournament />
+        {source.cloud ? (
+          <RemoteTournamentNotice source={source} />
+        ) : (
+          <MissingTournament />
+        )}
       </Shell>
     );
 
@@ -229,6 +236,13 @@ export function BracketScreen() {
   const done = t.matches.filter((m) => m.status === "completed").length;
   return (
     <Shell>
+      <RemoteTournamentNotice source={source} />
+      {!source.cloud ? (
+        <ImportTournament
+          key={`${t.id}:${source.client?.userId ?? "signed-out"}`}
+          tournament={t}
+        />
+      ) : null}
       <PageHeading
         eyebrow={`${t.modality} / MATA-MATA`}
         title={t.name}
@@ -238,7 +252,7 @@ export function BracketScreen() {
             <Button
               label="Ver campeão"
               icon="trophy-outline"
-              onPress={() => router.push(`/tournament/${id}/champion`)}
+              onPress={() => router.push(source.href("champion"))}
             />
           ) : (
             <Chip
@@ -258,7 +272,7 @@ export function BracketScreen() {
           title="A chave ainda vai ganhar vida."
           description="Complete a sala e sorteie os confrontos para começar."
           actionLabel="Ir para a sala"
-          onAction={() => router.replace(`/tournament/${id}/lobby`)}
+          onAction={() => router.replace(source.href("lobby"))}
         />
       ) : (
         <>
@@ -284,7 +298,7 @@ export function BracketScreen() {
               </Text>
               <Button
                 label="Celebrar"
-                onPress={() => router.push(`/tournament/${id}/champion`)}
+                onPress={() => router.push(source.href("champion"))}
               />
             </Panel>
           ) : activeRound >= 0 ? (

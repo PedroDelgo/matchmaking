@@ -5,7 +5,7 @@ type Entry = {
   id: string;
   intent: string;
   payload: unknown;
-  state: "pending" | "confirmed";
+  state: "pending" | "confirmed" | "rejected";
   remoteId?: string;
 };
 type Disk = {
@@ -46,7 +46,7 @@ export function createJournal(
           !e ||
           !uuid.test(e.id) ||
           typeof e.intent !== "string" ||
-          !["pending", "confirmed"].includes(e.state) ||
+          !["pending", "confirmed", "rejected"].includes(e.state) ||
           !Object.hasOwn(e, "payload"),
       )
     )
@@ -84,7 +84,8 @@ export function createJournal(
         if (
           old &&
           !options.newCopy &&
-          (old.state === "pending" || options.keepConfirmed)
+          (old.state === "pending" ||
+            (options.keepConfirmed && old.state === "confirmed"))
         ) {
           if (old.intent !== intent)
             throw new Error(
@@ -109,6 +110,15 @@ export function createJournal(
         if (!e || e.id !== id) throw new Error("JOURNAL_UNAVAILABLE");
         e.state = "confirmed";
         e.remoteId = remoteId;
+        await write(d);
+      }),
+    reject: (name: string, id: string) =>
+      serial(async () => {
+        const d = await read(),
+          e = d.entries[name];
+        if (!e || e.id !== id) throw new Error("JOURNAL_UNAVAILABLE");
+        e.state = "rejected";
+        delete e.remoteId;
         await write(d);
       }),
   };

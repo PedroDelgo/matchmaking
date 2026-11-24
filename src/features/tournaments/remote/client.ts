@@ -78,6 +78,14 @@ export function remoteMessage(code: string): string {
           "Não foi possível guardar a tentativa com segurança. Verifique o armazenamento e tente novamente.",
         INVALID_SNAPSHOT:
           "Este campeonato local não passou na validação de importação.",
+        INVALID_NAME:
+          "Use um nome de até 80 caracteres, sem deixar o campo vazio.",
+        INVALID_DOMAIN_COMMAND:
+          "Esta ação não é permitida no estado atual do campeonato. Atualizamos os dados para você revisar.",
+        INVALID_RESULT:
+          "Revise os placares e o vencedor do desempate antes de confirmar.",
+        INVALID_AGGREGATE:
+          "Não foi possível salvar esses valores com segurança. Revise os placares.",
         COMMITTED_REFRESH_PENDING:
           "O servidor confirmou a operação. A atualização da tela está pendente; tente atualizar o campeonato.",
         COMMITTED_JOURNAL_PENDING:
@@ -345,8 +353,10 @@ export class RemoteTournaments {
   ): Promise<RemoteSnapshot> {
     if (this.state.busy) throw new RemoteError("PENDING_OPERATION");
     this.publish({ busy: true });
+    let sentId: string | undefined;
     try {
       const e = await this.journal.prepare(key, intent, payload, options);
+      sentId = e.id;
       this.publish({
         pending: {
           ...this.state.pending,
@@ -357,6 +367,19 @@ export class RemoteTournaments {
         ...(e.payload as object),
         commandId: e.id,
       });
+      try {
+        if (
+          !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(
+            r.tournamentId,
+          ) ||
+          !Number.isSafeInteger(r.revision) ||
+          r.revision < 0
+        )
+          throw new Error();
+        parseImportSnapshot(r.tournament);
+      } catch {
+        throw new RemoteError("INVALID_SNAPSHOT");
+      }
       this.accept(r);
       try {
         await this.journal.finish(key, e.id, r.tournamentId);
@@ -398,6 +421,23 @@ export class RemoteTournaments {
         return this.state.details[r.tournamentId]?.data ?? r;
       }
     } catch (e) {
+      if (
+        sentId &&
+        e instanceof RemoteError &&
+        ([400, 422].includes(e.status) ||
+          (e.status === 409 &&
+            !["REVISION_CONFLICT", "RETRY_SAME_COMMAND"].includes(e.code)))
+      ) {
+        try {
+          await this.journal.reject(key, sentId);
+        } catch {
+          throw new RemoteError("JOURNAL_UNAVAILABLE");
+        }
+        const id = key.replace(/^mutation:/, "");
+        this.publish({ pending: { ...this.state.pending, [id]: false } });
+        if (key.startsWith("mutation:"))
+          await this.detail(id, true).catch(() => {});
+      }
       const failure = this.failure(e);
       if (e instanceof RemoteError) throw e;
       throw new Error(failure.error);
@@ -502,7 +542,7 @@ export class RemoteTournaments {
           {},
           {},
         );
-        await this.journal.finish(key, entry.id, id);
+        await this.journal.reject(key, entry.id);
         this.publish({ pending: { ...this.state.pending, [id]: false } });
         await this.detail(id, true).catch(() => {});
         this.publish({
@@ -532,7 +572,7 @@ export class RemoteTournaments {
       );
     } catch (e) {
       if (e instanceof RemoteError && e.code === "REVISION_CONFLICT") {
-        await this.journal.finish(key, entry.id, id);
+        await this.journal.reject(key, entry.id);
         this.publish({ pending: { ...this.state.pending, [id]: false } });
         await this.detail(id, true).catch(() => {});
         this.publish({

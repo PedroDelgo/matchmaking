@@ -469,3 +469,40 @@ test("criação com resposta perdida pode ser retomada sem o formulário reconst
   expect(posts[1]).toEqual(posts[0]);
   expect(await restored.hasPendingCreation()).toBe(false);
 });
+test("rejeição definitiva não prende o formulário em uma intenção inválida nem reaplica automaticamente", async () => {
+  const { journal } = setup(),
+    t = tournamentFixture("draft"),
+    posts: Record<string, unknown>[] = [];
+  const request = jest.fn(async (url: unknown, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      const body = JSON.parse(init.body as string);
+      posts.push(body);
+      if (!body.payload.displayName)
+        return response({ error: "INVALID_NAME" }, 400);
+      return response({
+        tournamentId: id,
+        revision: 2,
+        tournament: addParticipant(t, "Ana"),
+      });
+    }
+    return String(url).includes("/tournaments?")
+      ? response({ items: [], nextCursor: null })
+      : response({ tournamentId: id, revision: 1, tournament: t });
+  });
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "token",
+    request,
+    journal,
+  );
+  await client.detail(id);
+  await expect(
+    client.mutate(id, "add_participant", { displayName: "" }),
+  ).rejects.toThrow("sem deixar o campo vazio");
+  expect(client.getSnapshot().pending[id]).toBe(false);
+  expect(posts).toHaveLength(1);
+  await client.mutate(id, "add_participant", { displayName: "Ana" });
+  expect(posts).toHaveLength(2);
+  expect(posts[0].commandId).not.toBe(posts[1].commandId);
+});

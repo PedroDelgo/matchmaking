@@ -14,6 +14,18 @@ begin
   if has_function_privilege('anon','matchmaking_private.can_read_tournament(uuid)','EXECUTE') then
     raise exception 'Definer executable by anon';
   end if;
+  if not has_column_privilege('authenticated','public.profiles','nickname','UPDATE') or
+     has_column_privilege('authenticated','public.profiles','user_id','UPDATE') or
+     has_column_privilege('authenticated','public.profiles','created_at','UPDATE') or
+     has_column_privilege('authenticated','public.profiles','updated_at','UPDATE') or
+     has_table_privilege('authenticated','public.profiles','INSERT,DELETE') then
+    raise exception 'Unsafe profile write grants';
+  end if;
+  if has_function_privilege('authenticated','matchmaking_private.create_auth_profile()','EXECUTE') or
+     has_function_privilege('anon','matchmaking_private.create_auth_profile()','EXECUTE') or
+     has_function_privilege('authenticated','matchmaking_private.validate_profile_write()','EXECUTE') then
+    raise exception 'Profile trigger directly executable by client';
+  end if;
   if has_column_privilege('matchmaking_command','public.tournaments','owner_user_id','UPDATE') or
      has_table_privilege('matchmaking_command','public.tournament_members','INSERT,UPDATE,DELETE') then
     raise exception 'Command role can change access';

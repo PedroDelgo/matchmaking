@@ -336,7 +336,7 @@ test("idempotent retry after lost committed response precedes revision check; an
   const newOwner = await actor();
   await pool.query("insert into auth.users(id) values($1)", [newOwner.userId]);
   await pool.query(
-    "insert into public.profiles(user_id,nickname) values($1,'Novo organizador')",
+    "insert into public.profiles(user_id,nickname) values($1,'Novo organizador') on conflict do nothing",
     [newOwner.userId],
   );
   await pool.query(
@@ -431,7 +431,7 @@ test("RLS: owner/member/viewer can read; outsiders cannot read any private tourn
   for (const user of [member, viewer]) {
     await pool.query("insert into auth.users(id) values($1)", [user.userId]);
     await pool.query(
-      "insert into public.profiles(user_id,nickname) values($1,'Membro')",
+      "insert into public.profiles(user_id,nickname) values($1,'Membro') on conflict do nothing",
       [user.userId],
     );
     await pool.query(
@@ -512,4 +512,135 @@ test("database constraints forbid crossed tournament references, unsafe scores a
       (e) => (e as { code: string }).code === expected,
     );
   assert.deepEqual(plain(await read(pool, id)), plain(t));
+});
+
+test("Auth insertion provisions a neutral profile and self nickname updates normalize whitespace with server timestamps", async () => {
+  const userId = randomUUID();
+  await pool.query("insert into auth.users(id) values($1)", [userId]);
+  const original = (
+    await pool.query("select * from public.profiles where user_id=$1", [userId])
+  ).rows[0];
+  assert.equal(original.nickname, "Competidor");
+  assert.ok(original.created_at instanceof Date);
+  assert.ok(original.updated_at instanceof Date);
+  await asClient(pool, userId, async (client) => {
+    const { rows } = await client.query(
+      "update public.profiles set nickname=$2 where user_id=$1 returning *",
+      [userId, "  Vitória\u00a0\u2009  Silva  "],
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].nickname, "Vitória Silva");
+    assert.equal(rows[0].user_id, userId);
+    assert.equal(
+      rows[0].created_at.toISOString(),
+      original.created_at.toISOString(),
+    );
+    assert.ok(rows[0].updated_at.getTime() >= original.updated_at.getTime());
+  });
+});
+
+test("profile RLS and column grants prevent reading or editing another account and all protected fields", async () => {
+  const owner = randomUUID(),
+    other = randomUUID();
+  await pool.query("insert into auth.users(id) values($1),($2)", [
+    owner,
+    other,
+  ]);
+  await asClient(pool, other, async (client) => {
+    assert.equal(
+      (
+        await client.query("select * from public.profiles where user_id=$1", [
+          owner,
+        ])
+      ).rowCount,
+      0,
+    );
+    assert.equal(
+      (
+        await client.query(
+          "update public.profiles set nickname='Intruso' where user_id=$1",
+          [owner],
+        )
+      ).rowCount,
+      0,
+    );
+    const own = await client.query("select user_id from public.profiles");
+    assert.deepEqual(own.rows, [{ user_id: other }]);
+  });
+  for (const sql of [
+    "update public.profiles set user_id=gen_random_uuid() where user_id=$1",
+    "update public.profiles set created_at=now() where user_id=$1",
+    "update public.profiles set updated_at=now() where user_id=$1",
+    "insert into public.profiles(user_id,nickname) values($1,'Intruso')",
+    "delete from public.profiles where user_id=$1",
+    "select matchmaking_private.create_auth_profile()",
+    "select matchmaking_private.validate_profile_write()",
+  ]) {
+    await assert.rejects(
+      asClient(pool, owner, async (client) => {
+        await client.query(sql, sql.includes("$1") ? [owner] : []);
+      }),
+      (error) => (error as { code: string }).code === "42501",
+      sql,
+    );
+  }
+  const unchanged = await pool.query(
+    "select nickname from public.profiles where user_id=$1",
+    [owner],
+  );
+  assert.equal(unchanged.rows[0].nickname, "Competidor");
+});
+
+test("profile validation rejects controls and invisible direction changes while preserving Unicode and codepoint limits", async () => {
+  const userId = randomUUID();
+  await pool.query("insert into auth.users(id) values($1)", [userId]);
+  const forbidden = [
+    "\u0001",
+    "\t",
+    "\n",
+    "\r",
+    "\u001f",
+    "\u007f",
+    "\u0085",
+    "\u009f",
+    "\u00ad",
+    "\u200b",
+    "\u200c",
+    "\u200d",
+    "\u200e",
+    "\u200f",
+    "\u202a",
+    "\u202e",
+    "\u2060",
+    "\u2066",
+    "\u2069",
+    "\u206f",
+    "\ufeff",
+  ];
+  for (const nickname of [
+    "",
+    "   ",
+    "A",
+    "A".repeat(41),
+    ...forbidden.map((c) => `Jo${c}ão`),
+  ]) {
+    await assert.rejects(
+      asClient(pool, userId, async (client) => {
+        await client.query(
+          "update public.profiles set nickname=$2 where user_id=$1",
+          [userId, nickname],
+        );
+      }),
+      (error) => (error as { code: string }).code === "23514",
+    );
+  }
+  for (const nickname of ["João", "李明", "⚽️ Campeão", "😀".repeat(40)]) {
+    await asClient(pool, userId, async (client) => {
+      const result = await client.query(
+        "update public.profiles set nickname=$2 where user_id=$1 returning nickname",
+        [userId, nickname],
+      );
+      assert.equal(result.rows[0].nickname, nickname);
+    });
+  }
 });

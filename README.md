@@ -2,7 +2,7 @@
 
 Transforme qualquer disputa entre amigos em um campeonato memorável.
 
-Primeira versão funcional e local de uma plataforma de torneios: **Início → Criar → Sala → Sortear → Chaveamento → Resultados → Campeão**. A aplicação começa vazia e lista somente campeonatos criados neste dispositivo. Os nomes de demonstração só são adicionados pela ação explícita na sala.
+Plataforma de torneios locais: **Início → Criar → Sala → Sortear → Chaveamento → Resultados → Campeão**. A aplicação começa vazia e lista somente campeonatos criados neste dispositivo. Os nomes de demonstração só são adicionados pela ação explícita na sala. A conta Supabase é opcional e mantém identidade/perfil; seus campeonatos continuam no dispositivo, sem importação automática.
 
 ## Tecnologias
 
@@ -13,12 +13,13 @@ Primeira versão funcional e local de uma plataforma de torneios: **Início → 
 - Inter, Barlow Condensed ExtraBold e Ionicons, empacotados localmente.
 - Jest, React Native Testing Library e Playwright.
 - Fundação backend local: Supabase CLI, PostgreSQL 17, serviço Node 24/TypeScript, `pg` e `jose`, desacoplados do app.
+- Supabase Auth, sessão separada por projeto, SecureStore Android/iOS e Crypto para PKCE; localStorage na web.
 
 As dependências específicas do SDK foram instaladas com `expo install`, conforme a [documentação oficial](https://docs.expo.dev/router/installation/). `npm run check:deps` verifica a compatibilidade instalada.
 
 ## Requisitos e instalação
 
-Node.js 22.13 ou superior; ambiente utilizado: **Windows, Node 24.22.1**. Use o lockfile para reproduzir a instalação.
+Node.js 22.13 ou superior para o app; backend e ferramentas desta entrega usam **Node 24**. Ambiente utilizado: **Windows, Node 24.22.1**. Use o lockfile para reproduzir a instalação.
 
 ```powershell
 cd C:\Users\pedro\OneDrive\Documentos\Projetos\matchmaking
@@ -81,6 +82,7 @@ src/theme/                   Paleta oficial, fontes, espaçamento e movimento
 src/features/tournaments/
   domain/                    Tipos, validação e identificação de nomes repetidos
   engine/                    Motor puro de chaveamento e estatísticas
+src/features/auth/           Conta, ciclo de sessão, armazenamento e PKCE
 src/store/                   Zustand, validação e adaptador de armazenamento
 src/hooks/                   Movimento reduzido e layout responsivo
 src/utils/                   Compartilhamento com adaptador web
@@ -194,14 +196,36 @@ npm.cmd run backend:test:db
 
 A integração compila o serviço e cria/remove seu próprio banco e login temporários, sem resetar um banco existente. `db:start` inicia somente PostgreSQL; não oferece Auth funcional. O [relatório](docs/stage-5a.md#executar-localmente) explica como provisionar o login restrito e configurar um emissor JWT compatível para executar o HTTP manualmente. Nenhum projeto remoto, push ou deploy foi realizado nesta etapa.
 
+## Identidade e perfis — Etapa 5B
+
+Conta opcional com cadastro por e-mail/senha, confirmação, login, persistência, refresh, recuperação, logout e perfil remoto privado. O perfil local e o envelope `matchmaking-local-v1` foram preservados. A [auditoria da retomada 5B](docs/stage-5b.md) registra o trabalho anterior reaproveitado, correções, testes reais, limites de revogação e roteiro para o S25 Ultra.
+
+Para Auth local, com Docker ativo:
+
+```powershell
+npm.cmd run auth:local
+npm.cmd run web
+```
+
+O primeiro comando preserva volumes/chaves e prepara `.env.local` apenas se ausente, com configurações públicas. API em `127.0.0.1:54321`, e-mails capturados no [Mailpit local](http://127.0.0.1:54324). Confirme/recupere no mesmo navegador e origem que iniciaram o fluxo. Não coloque segredos administrativos em `EXPO_PUBLIC_*`. Sem configuração de Auth, os campeonatos locais seguem disponíveis.
+
+```powershell
+npm.cmd run backend:test:auth
+npm.cmd run backend:test:db:local
+# Use Chromium instalado pelo Playwright ou configure PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH.
+npm.cmd run test:auth:e2e
+```
+
+Esses runners capturam as credenciais locais da CLI somente em memória. A regressão completa cobre **124 testes Jest, 60 Playwright (8 de Auth real), 3 unitários Node, 16 PostgreSQL e 7 subtestes Auth reais**. `test:e2e` sem as variáveis administrativas marca os casos de Auth como skipped; `test:auth:e2e` os executa. Os bundles Hermes Android/iOS foram exportados, mas os fluxos nativos ainda não foram homologados em aparelho. No S25, use a URL LAN do computador, as portas e os redirects exatos do [roteiro 5B](docs/stage-5b.md#galaxy-s25-ultra--preparação-e-roteiro-pendente).
+
 ## Limitações e próxima etapa
 
-O app continua sem conexão remota, login, sincronização, convites remotos, notificações ou QR Code funcional. A fundação backend está disponível apenas para desenvolvimento/testes locais. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos; não existe backup em nuvem.
+O app conecta somente identidade/perfil ao Supabase configurado. Campeonatos remotos, sincronização, convites remotos, notificações e QR Code funcional seguem pendentes; não existe backup em nuvem. A fundação backend está disponível para desenvolvimento/testes locais. Pontos corridos e fase de grupos estão identificados como futuros. Compartilhamento não gera uma imagem. Limpar os dados do navegador ou desinstalar o aplicativo pode remover os campeonatos.
 
 A validação web foi feita no Chromium em quatro larguras (1440, 768, 375 e 320 px), com toque simulado nos projetos tablet e mobile. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
 
 A auditoria npm repetida na Etapa 5A apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja os [registros da Etapa 5A](docs/stage-5a.md#validação-executada) e o [relatório inicial](docs/validation.md).
 
-**Próximo passo recomendado:** Etapa 5B, identidade/autenticação e perfis persistentes com testes de sessão e isolamento entre contas, preservando o app local. A homologação em Android/iPhone reais continua pendente, incluindo persistência, teclado, animações, compartilhamento e acessibilidade. Campeonatos remotos/importação, convites e Realtime pertencem às etapas posteriores.
+**Próximo passo:** homologar a 5B no Android/iPhone e preparar a Etapa 5C, leitura/criação remota e importação idempotente com consentimento. Persistência nativa, deep links, teclado, animações, compartilhamento e acessibilidade em aparelho continuam pendentes. Convites e Realtime pertencem às etapas posteriores.
 
 Decisões visuais e referências: [docs/design-decisions.md](docs/design-decisions.md). O envio do código ao GitHub é separado da publicação do aplicativo. Nenhum deploy ou publicação em loja foi realizado.

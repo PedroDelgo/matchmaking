@@ -10,7 +10,7 @@ Fonte principal: identidade oficial e briefing Matchmaking. Direção de impleme
 - [Target: criação de evento](https://refero.design/screens/4bc3d7ae-0af1-41f1-a561-8065bd922f71): uma decisão por etapa, seleção explícita e ação de continuidade.
 - [Brilliant: ranking](https://refero.design/screens/1634846c-b8f7-46cc-9487-cb10b5645d90): posição, avatar e valores alinhados.
 - [Apple Sports: estatísticas](https://refero.design/screens/233a8ef5-e081-4822-b1c8-95ddbc77003e): densidade controlada e colunas numéricas.
-- [TikTok: convites](https://refero.design/flows/2756): métodos agrupados e estado explícito. No MVP os convites permanecem indisponíveis.
+- [TikTok: convites](https://refero.design/flows/2756): métodos agrupados e estado explícito, retomados na interface real da 5D.
 
 ## Decisões travadas
 
@@ -25,3 +25,5 @@ Fonte principal: identidade oficial e briefing Matchmaking. Direção de impleme
 | Geometria de chaveamento | Produto | Ilustração nativa | Explicar o próprio produto sem imagens aleatórias |
 
 Sem monograma: apenas a logo completa foi fornecida. Sem backend, autenticação ou convites simulados. Nenhuma publicação automática.
+
+Na 5D, métodos link/QR/código ficam juntos na sala existente, com papel explícito, prévia mínima e aceite separado. QR preto/branco centralizado, ampliável e gerado localmente; feedback de cópia, loading/erro e atualização manual usam os componentes existentes. A skill Refero foi consultada; o catálogo ao vivo retornou `NO_SUBSCRIPTION`, então foram usadas estas referências previamente pesquisadas e o guia de craft. O [relatório 5D](stage-5d.md) discrimina as provas web e pendências nativas. Links de desenvolvimento são identificados como tal; não há domínio público ou redesign.

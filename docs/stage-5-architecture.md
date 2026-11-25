@@ -2,7 +2,7 @@
 
 Status: **planejamento, sem backend implementado**. Revisão em 23/11/2026, após a auditoria da Etapa 4. Não foram criados projetos remotos, contas, tabelas, credenciais, funções, SDKs adicionais ou deploys. As escolhas abaixo são propostas reversíveis; devem ser confirmadas por uma prova transacional e testes de múltiplos clientes antes da implementação pública.
 
-Continuidade: o parágrafo acima registra o estado deste plano quando foi escrito. A [Etapa 5A](stage-5a.md) implementou a fundação local e a prova transacional; a [5B](stage-5b.md), Auth e perfis privados. A [5C](stage-5c.md), em 24/11/2026, acrescenta criação/leitura remota, participantes, sorteio e importação idempotente com consentimento, usando o mesmo motor. O store v1 permanece independente; o cliente usa cache por identidade/API e journal separado. IDs remotos de participantes são aleatórios e reservados permanentemente, inclusive após remoção. Tudo foi executado em serviços locais; homologação nativa, projeto remoto, operação de produção, convites e Realtime continuam pendentes. O restante deste documento preserva a proposta original e suas etapas futuras.
+Continuidade: o parágrafo acima registra o estado deste plano quando foi escrito. A [Etapa 5A](stage-5a.md) implementou a fundação local e a prova transacional; a [5B](stage-5b.md), Auth e perfis privados. A [5C](stage-5c.md), em 24/11/2026, acrescentou criação/leitura remota e importação idempotente. A [5D](stage-5d.md), em 25/11/2026, implementou convites privados, link/código/QR, sessões anônimas autenticadas, binding explícito de jogador, admissão transacional e atualização manual. O motor/store v1 permanecem independentes. Cache é isolado por identidade/API; o journal separado preserva tentativas exatas e guarda temporariamente a credencial de aceitação até confirmação. IDs competitivos são reservados permanentemente. Os serviços continuam locais; homologação nativa, projeto remoto, operação pública e Realtime continuam pendentes. O restante preserva a proposta original.
 
 ## Ponto de partida e regras preservadas
 
@@ -155,7 +155,7 @@ Revogar membro impede novas leituras/comandos/assinaturas, mas não apaga dados 
 3. Implementar identidade/perfis e leitura isolada; testes de RLS/grants e do caminho privilegiado antes de convites.
 4. Implementar comandos e importação idempotentes; depois convites/link/código/QR, tempo real e reconexão. Liberar gradualmente após dois clientes concorrentes convergirem.
 
-Testes propostos no planejamento original. Os relatórios 5A–5C registram as provas já executadas; convites, Realtime, restauração e carga continuam pendentes:
+Testes propostos no planejamento original. Os relatórios 5A–5D registram as provas já executadas, incluindo convites/concorrência/RLS; Realtime, restauração e carga continuam pendentes:
 
 - Fixtures reais 4/8/16, desempate, correção com mesmo/outro vencedor, campeão e estatísticas: serviço e motor produzem o mesmo agregado.
 - Mesma revisão disputada: um comando aplica e outro conflita, sem descendentes parciais; torneios diferentes permanecem independentes.

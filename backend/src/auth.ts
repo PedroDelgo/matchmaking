@@ -4,6 +4,7 @@ import { CommandError, uuid } from "./commands";
 declare const authenticated: unique symbol;
 export type AuthenticatedActor = {
   readonly userId: string;
+  readonly isAnonymous?: boolean;
   readonly [authenticated]: true;
 };
 export function createAuthenticator(authUrl: string, key?: JWTVerifyGetKey) {
@@ -40,12 +41,22 @@ export function createAuthenticator(authUrl: string, key?: JWTVerifyGetKey) {
       if (
         !payload.sub ||
         !uuid.test(payload.sub) ||
-        payload.role !== "authenticated"
+        payload.role !== "authenticated" ||
+        (payload.is_anonymous !== undefined &&
+          typeof payload.is_anonymous !== "boolean")
       )
         throw new Error("Invalid actor");
-      return { userId: payload.sub.toLowerCase() } as AuthenticatedActor;
+      return {
+        userId: payload.sub.toLowerCase(),
+        isAnonymous: payload.is_anonymous === true,
+      } as AuthenticatedActor;
     } catch {
       throw new CommandError(401, "UNAUTHENTICATED");
     }
   };
+}
+
+export function requireRecoverableActor(actor: AuthenticatedActor) {
+  if (actor.isAnonymous)
+    throw new CommandError(403, "RECOVERABLE_ACCOUNT_REQUIRED");
 }

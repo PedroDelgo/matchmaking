@@ -66,6 +66,7 @@ try {
         "--test",
         "backend/test/database.integration.ts",
         "backend/test/cloud.integration.ts",
+        "backend/test/invites.integration.ts",
       ],
       {
         env: {

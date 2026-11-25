@@ -15,4 +15,5 @@ coverage/
 supabase/.temp/
 supabase/.branches/
 backend/dist/
+backend/.invite-pepper
 supabase/signing_keys.json

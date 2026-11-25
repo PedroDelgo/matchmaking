@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { randomUUID } from "node:crypto";
 import type { AuthenticatedActor } from "./auth";
+import { requireRecoverableActor } from "./auth";
 import { CommandError, commandHash, parseCommand } from "./commands";
 import {
   loadTournament,
@@ -20,6 +21,10 @@ import type { Tournament } from "../../src/features/tournaments/domain/types";
 import { parseImportSnapshot } from "../../src/features/tournaments/domain/snapshot";
 
 export type CommandResponse = {
+  access?: {
+    role: "organizer" | "participant" | "viewer";
+    participantId?: string;
+  };
   tournamentId: string;
   revision: number;
   tournament: Tournament;
@@ -35,6 +40,7 @@ export function createCommandService(
     actor: AuthenticatedActor,
     input: unknown,
   ): Promise<CommandResponse> => {
+    requireRecoverableActor(actor);
     const command = parseCommand(input),
       hash = commandHash(command);
     const client = await pool.connect();
@@ -118,8 +124,14 @@ export function createCommandService(
       if (
         command.type === "add_participant" ||
         command.type === "remove_participant"
-      )
+      ) {
+        if (command.type === "remove_participant")
+          await client.query(
+            "update public.tournament_members set role='viewer',participant_id=null where tournament_id=$1 and participant_id=$2",
+            [command.tournamentId, command.payload.participantId],
+          );
         await saveParticipants(client, command.tournamentId, current, next);
+      }
       if (command.type === "draw_bracket")
         await insertBracket(client, command.tournamentId, next);
       await saveResult(client, command.tournamentId, next, revision);

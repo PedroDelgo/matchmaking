@@ -79,6 +79,16 @@ test("verifies signature, issuer, audience, expiry, subject and authenticated ro
       .setExpirationTime("1m")
       .sign(keys.privateKey);
   assert.equal((await auth(`Bearer ${await sign()}`)).userId, user);
+  assert.equal((await auth(`Bearer ${await sign()}`)).isAnonymous, false);
+  assert.equal(
+    (await auth(`Bearer ${await sign({ is_anonymous: true })}`)).isAnonymous,
+    true,
+  );
+  assert.equal(
+    (await auth(`Bearer ${await sign({ is_anonymous: false })}`)).isAnonymous,
+    false,
+  );
+  await assert.rejects(auth(`Bearer ${await sign({ is_anonymous: "true" })}`));
   await assert.rejects(auth(undefined));
   await assert.rejects(auth(`Bearer ${await sign({ role: "service_role" })}`));
   for (const mutation of [

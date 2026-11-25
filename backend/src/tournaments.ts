@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { AuthenticatedActor } from "./auth";
+import { requireRecoverableActor } from "./auth";
 import {
   CommandError,
   commandHash,
@@ -96,7 +97,7 @@ export function tournamentResponse(
     }),
   ) as CommandResponse;
 }
-async function transaction<T>(
+export async function transaction<T>(
   pool: Pool,
   readOnly: boolean,
   run: (c: PoolClient) => Promise<T>,
@@ -187,6 +188,7 @@ export function createTournamentService(
       actor: AuthenticatedActor,
       input: unknown,
     ): Promise<CommandResponse> {
+      requireRecoverableActor(actor);
       const op = parseOperation(input),
         hash = commandHash(op);
       return transaction(pool, false, async (c) => {
@@ -284,7 +286,28 @@ export function createTournamentService(
       return transaction(pool, true, async (c) => {
         const revision = await authorize(c, id, actor.userId);
         await hooks.afterAuthorizeRead?.();
-        return tournamentResponse(id, revision, await loadTournament(c, id));
+        const {
+          rows: [t],
+        } = await c.query(
+          "select owner_user_id from public.tournaments where id=$1",
+          [id],
+        );
+        const {
+          rows: [member],
+        } = await c.query(
+          "select role,participant_id from public.tournament_members where tournament_id=$1 and user_id=$2",
+          [id, actor.userId],
+        );
+        return {
+          ...tournamentResponse(id, revision, await loadTournament(c, id)),
+          access: {
+            role:
+              t.owner_user_id === actor.userId && !actor.isAnonymous
+                ? ("organizer" as const)
+                : member?.role,
+            participantId: member?.participant_id ?? undefined,
+          },
+        };
       });
     },
     async list(actor: AuthenticatedActor, params: URLSearchParams) {
@@ -305,7 +328,7 @@ export function createTournamentService(
           (select count(*)::int from public.participants p where p.tournament_id=t.id) as participants,
           (select count(*)::int from public.matches m where m.tournament_id=t.id and m.status='completed') as completed_matches,
           (select display_name from public.participants p where p.tournament_id=t.id and p.domain_id=t.champion_id) as champion
-          from public.tournaments t where t.owner_user_id=$1 and ($2::timestamptz is null or (t.updated_at,t.id)<($2::timestamptz,$3::uuid))
+          from public.tournaments t where (t.owner_user_id=$1 or exists(select 1 from public.tournament_members mem where mem.tournament_id=t.id and mem.user_id=$1)) and ($2::timestamptz is null or (t.updated_at,t.id)<($2::timestamptz,$3::uuid))
           order by t.updated_at desc,t.id desc limit $4`,
           [actor.userId, cursor?.at ?? null, cursor?.id ?? null, limit + 1],
         );

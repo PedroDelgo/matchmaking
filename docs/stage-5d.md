@@ -6,13 +6,13 @@ Retomada em **25/11/2026**. **Em implementação:** os blocos abaixo registram p
 
 `main` limpa em `f4cabfe`, sincronizada com `origin/main`. O push solicitado após a 5C enviou os 19 commits anteriores; o estado histórico do relatório 5C permanece preservado. Executados status, branch, log de 25 commits, diffs e arquivos não rastreados. Não havia trabalho 5D iniciado. Lidos README, relatórios 5A–5C, arquitetura, decisões visuais, migrations/RLS, Auth, membros, comandos, repositório, store, sala, rotas e testes.
 
-Base reconfirmada: TypeScript app/backend, ESLint, 140 Jest/23 suítes, 3 Node, 24 PostgreSQL e Auth real (7 subtestes + pai). A matriz de 84 E2E ainda está em execução no registro inicial. Docker estava parado; foi iniciado. A primeira chamada ocorreu antes de o engine ficar pronto; a repetição recuperou a stack sem reset, remoção de volumes ou mudanças de credenciais.
+Base reconfirmada: TypeScript app/backend, ESLint, 140 Jest/23 suítes, 3 Node, 24 PostgreSQL e Auth real (7 subtestes + pai). Os **84 E2E da base passaram**, sem skips. Docker estava parado; foi iniciado. A primeira chamada ocorreu antes de o engine ficar pronto; a repetição recuperou a stack sem reset, remoção de volumes ou mudanças de credenciais.
 
 ## Blocos
 
-- A: migration 006 acrescenta convites privados, recibos/eventos, limites de tentativa e vínculo explícito de membership ao participante. RLS/grants e trigger de proprietário permanente; validada no banco descartável com as 24 integrações existentes.
-- B: backend em implementação; preview não consome uso, aceitação bloqueia raiz antes do convite, contador/participante/membro/evento/recibo confirmam juntos. Testes novos pendentes.
-- C: aplicativo, QR e sessões convidadas pendentes.
+- A: commit `673f269`; migration 006 acrescenta convites privados, recibos/eventos, limites de tentativa e vínculo explícito de membership ao participante. RLS/grants e trigger de proprietário permanente; validada no banco descartável.
+- B: backend implementado; preview não consome uso, aceitação bloqueia raiz antes do convite, contador/participante/membro/evento/recibo confirmam juntos. **37 testes PostgreSQL**, Node3 e duas suítes Auth reais (**15 no runner**), aprovados; testes novos incluem disputa de última vaga/uso, espera real por lock, rollback, RLS convidada, limites de abuso após restart e HTTP malformado sem encerrar o servidor.
+- C: aplicativo, QR e sessões convidadas implementados; **161 Jest/25 suítes**, TypeScript/lint aprovados. A matriz E2E nova está em depuração; ainda não é aprovação final.
 - D: integração Auth/E2E, regressões finais e relatório pendentes.
 
 ## Referência visual travada
@@ -34,5 +34,7 @@ Organizador permanente, participante e espectador têm fronteiras separadas. Sup
 Tokens terão 32 bytes aleatórios e somente digest persistido. Códigos terão oito caracteres sem 0/1/I/O, digest HMAC com segredo exclusivo do servidor e limite de tentativas persistente por IP da conexão/identidade. Headers de proxy não serão confiados. Falhas de aceitação não revertem o contador de tentativas. Links web usarão fragmento, sem enviar o segredo na URL HTTP, e serão removidos do histórico visível ao abrir a tela.
 
 O link/código só será exibido na criação. Repetir o comando devolve metadados sem recriar o convite; não há recuperação fictícia do segredo a partir de hash. Se a resposta da criação se perder, o organizador pode conferir/revogar o convite e emitir outro explicitamente. Aceitações possuem ID/payload duráveis antes do envio e replay autorizado, sem outro uso/vaga.
+
+Os convites ativos aparecem antes do histórico limitado às 100 entradas mais relevantes; há até 20 ativos por torneio. A sala admite até 200 memberships, verificados sob o mesmo lock da raiz, de forma que a lista administrativa de até 200 acessos permanece completa. Esses acessos não alteram a capacidade competitiva 4/8/16. Código permite até 100 usos e validade de 1–168 horas. Rate limit do serviço: 60 tentativas/IP/minuto e 20/ator/minuto, usando relógio/contadores do banco, sem confiar em `X-Forwarded-For`.
 
 Somente novos jogadores em preparação ocupam vaga; espectadores entram também após o sorteio. Nome igual nunca reivindica participante criado manualmente. Membro existente não consome outro uso nem muda de papel implicitamente. Remover um jogador competitivo conserva sua identidade reservada e o membro passa a espectador; remoção do acesso é operação separada auditada.

@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { Pool } from "pg";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { connect } from "node:net";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createAuthenticator, type AuthenticatedActor } from "../src/auth";
 import { createCommandService } from "../src/service";
@@ -159,6 +160,23 @@ test("compiled HTTP service verifies JWKS and commits results/corrections with t
         );
       });
     };
+    const malformed = await new Promise<string>((resolve, reject) => {
+      let raw = "";
+      const socket = connect(Number(new URL(origin).port), "127.0.0.1", () =>
+        socket.end(
+          "GET http://[ HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        ),
+      );
+      socket.setTimeout(5000, () =>
+        socket.destroy(new Error("Malformed HTTP probe timed out")),
+      );
+      socket.on("data", (chunk) => {
+        raw += String(chunk);
+      });
+      socket.once("end", () => resolve(raw));
+      socket.once("error", reject);
+    });
+    assert.match(malformed, /^HTTP\/1\.1 400 /);
     assert.equal((await send({ actorId: owner })).status, 401);
     assert.equal(
       (await send({ ...command(id, t.matches[0].id), actorId: owner }, jwt))

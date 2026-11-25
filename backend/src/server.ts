@@ -4,6 +4,7 @@ import { createAuthenticator } from "./auth";
 import { CommandError } from "./commands";
 import { createCommandService } from "./service";
 import { createTournamentService } from "./tournaments";
+import { createInviteService } from "./invites";
 
 const databaseUrl = process.env.DATABASE_URL,
   authUrl = process.env.SUPABASE_AUTH_URL;
@@ -21,6 +22,10 @@ pool.on("error", () =>
 );
 const execute = createCommandService(pool);
 const tournaments = createTournamentService(pool);
+const invites = createInviteService(pool, {
+  pepper: process.env.MATCHMAKING_INVITE_PEPPER,
+  baseUrl: process.env.MATCHMAKING_INVITE_BASE_URL,
+});
 const origins = (
   process.env.CORS_ORIGINS ?? "http://localhost:8081,http://127.0.0.1:8081"
 ).split(",");
@@ -43,6 +48,8 @@ if (
 const server = createServer(async (request, response) => {
   response.setHeader("Content-Type", "application/json");
   response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-Content-Type-Options", "nosniff");
   const origin = request.headers.origin;
   if (origin && !origins.includes(origin)) {
     response.writeHead(403).end('{"error":"ORIGIN_FORBIDDEN"}');
@@ -56,31 +63,73 @@ const server = createServer(async (request, response) => {
     response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     response.setHeader(
       "Access-Control-Allow-Headers",
-      "Authorization, Content-Type",
+      "Authorization, Content-Type, X-Invite-Token",
     );
     response.writeHead(204).end();
     return;
   }
-  const url = new URL(request.url ?? "/", "http://127.0.0.1"),
-    detail = /^\/tournaments\/([a-f0-9-]+)$/i.exec(url.pathname);
+  let url: URL;
+  try {
+    url = new URL(request.url ?? "/", "http://127.0.0.1");
+  } catch {
+    response.writeHead(400).end('{"error":"INVALID_URL"}');
+    return;
+  }
+  const detail = /^\/tournaments\/([a-f0-9-]+)$/i.exec(url.pathname),
+    administration = /^\/tournaments\/([a-f0-9-]+)\/(invites|members)$/i.exec(
+      url.pathname,
+    ),
+    preview =
+      url.pathname === "/invite-preview" &&
+      !url.search &&
+      ["GET", "POST"].includes(request.method ?? "");
   const isRead =
-    request.method === "GET" && (url.pathname === "/tournaments" || detail);
+    request.method === "GET" &&
+    (url.pathname === "/tournaments" || detail || administration);
   const isWrite =
     request.method === "POST" &&
-    ["/commands", "/tournaments", "/tournament-imports"].includes(
-      url.pathname,
-    ) &&
+    [
+      "/commands",
+      "/tournaments",
+      "/tournament-imports",
+      "/invites",
+      "/invites/revoke",
+      "/members/remove",
+      "/invite-acceptances",
+    ].includes(url.pathname) &&
     !url.search;
-  if (!isRead && !isWrite) {
+  if (!isRead && !isWrite && !preview) {
     response.writeHead(404).end('{"error":"NOT_FOUND"}');
     return;
   }
   try {
-    const actor = await authenticate(request.headers.authorization); // network/JWKS before acquiring a DB connection
+    const ip = request.socket.remoteAddress ?? "unknown"; // Forwarded headers are untrusted.
+    if (preview && request.method === "GET") {
+      const previewActor = request.headers.authorization
+        ? await authenticate(request.headers.authorization)
+        : undefined;
+      const result = await invites.preview(
+        { kind: "token", value: request.headers["x-invite-token"] },
+        ip,
+        previewActor,
+      );
+      response.writeHead(200).end(JSON.stringify(result));
+      return;
+    }
+    const actor =
+      preview && !request.headers.authorization
+        ? undefined
+        : await authenticate(request.headers.authorization); // network/JWKS before acquiring a DB connection
     if (isRead) {
-      const result = detail
-        ? await tournaments.detail(actor, detail[1])
-        : await tournaments.list(actor, url.searchParams);
+      const result = administration
+        ? await invites.list(
+            actor!,
+            administration[1],
+            administration[2] as "invites" | "members",
+          )
+        : detail
+          ? await tournaments.detail(actor!, detail[1])
+          : await tournaments.list(actor!, url.searchParams);
       response.writeHead(200).end(JSON.stringify(result));
       return;
     }
@@ -98,6 +147,33 @@ const server = createServer(async (request, response) => {
     } catch {
       throw new CommandError(400, "INVALID_JSON");
     }
+    if (
+      preview ||
+      url.pathname === "/invite-acceptances" ||
+      ["/invites", "/invites/revoke", "/members/remove"].includes(url.pathname)
+    ) {
+      if (!preview && url.pathname !== "/invite-acceptances") {
+        const expected = {
+          "/invites": "create_invite",
+          "/invites/revoke": "revoke_invite",
+          "/members/remove": "remove_member",
+        }[url.pathname];
+        if (
+          !command ||
+          typeof command !== "object" ||
+          !("type" in command) ||
+          command.type !== expected
+        )
+          throw new CommandError(400, "UNSUPPORTED_COMMAND");
+      }
+      const result = preview
+        ? await invites.preview(command, ip, actor)
+        : url.pathname === "/invite-acceptances"
+          ? await invites.accept(actor!, command, ip)
+          : await invites.manage(actor!, command);
+      response.writeHead(200).end(JSON.stringify(result));
+      return;
+    }
     if (url.pathname !== "/commands") {
       const type =
         command && typeof command === "object" && "type" in command
@@ -113,11 +189,12 @@ const server = createServer(async (request, response) => {
     }
     const result =
       url.pathname === "/commands"
-        ? await execute(actor, command)
-        : await tournaments.operate(actor, command);
+        ? await execute(actor!, command)
+        : await tournaments.operate(actor!, command);
     response.writeHead(200).end(JSON.stringify(result));
   } catch (error) {
     const known = error instanceof CommandError;
+    if (known && error.status === 429) response.setHeader("Retry-After", "60");
     response
       .writeHead(known ? error.status : 500)
       .end(JSON.stringify({ error: known ? error.code : "INTERNAL_ERROR" }));

@@ -1,6 +1,20 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Pool } from "pg";
+
+export function localInvitePepper() {
+  const path = "backend/.invite-pepper";
+  if (!existsSync(path))
+    writeFileSync(path, randomBytes(32).toString("base64url"), {
+      flag: "wx",
+      mode: 0o600,
+    });
+  const value = readFileSync(path, "utf8").trim();
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(value))
+    throw new Error("Invalid ignored local invitation pepper");
+  return value;
+}
 
 /** Local operator bootstrap. The restricted credential exists only in memory. */
 export async function withLocalApi(status, run, { manual = false } = {}) {
@@ -35,6 +49,7 @@ export async function withLocalApi(status, run, { manual = false } = {}) {
         ...process.env,
         DATABASE_URL: database.toString(),
         SUPABASE_AUTH_URL: `${status.API_URL}/auth/v1`,
+        MATCHMAKING_INVITE_PEPPER: localInvitePepper(),
         PORT: manual ? (process.env.PORT ?? "8090") : "0",
         NODE_ENV: manual ? "development" : "test",
       },

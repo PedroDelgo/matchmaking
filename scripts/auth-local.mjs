@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { exportJWK, generateKeyPair } from "jose";
-import { withLocalApi } from "./local-api.mjs";
+import { withLocalApi, localInvitePepper } from "./local-api.mjs";
 
 // Local operator tooling only. No values returned by status enter the Expo bundle
 // except the two explicitly public EXPO_PUBLIC_ fields below.
@@ -177,6 +177,7 @@ try {
       MATCHMAKING_AUTH_SERVICE_KEY:
         status.SECRET_KEY ?? status.SERVICE_ROLE_KEY,
       MATCHMAKING_TEST_DATABASE_URL: status.DB_URL,
+      MATCHMAKING_INVITE_PEPPER: localInvitePepper(),
     };
     if (mode === "test" || mode === "db" || mode === "api" || mode === "e2e") {
       run(
@@ -198,7 +199,11 @@ try {
         run(
           "node_modules/tsx/dist/cli.mjs",
           mode === "test"
-            ? ["--test", "backend/test/auth.integration.ts"]
+            ? [
+                "--test",
+                "backend/test/auth.integration.ts",
+                "backend/test/invites.auth.integration.ts",
+              ]
             : ["backend/test/run-database.ts"],
           env,
         );

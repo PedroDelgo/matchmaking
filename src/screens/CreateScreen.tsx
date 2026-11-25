@@ -124,6 +124,12 @@ export function CreateScreen() {
       );
       return;
     }
+    if (destination === "cloud" && auth.session?.user.is_anonymous) {
+      setError(
+        "Criar na nuvem exige uma conta recuperável. Sua sessão de convidado serve para entrar nos campeonatos; você pode criar neste dispositivo sem sair.",
+      );
+      return;
+    }
     submitting.current = true;
     setBusy(true);
     try {

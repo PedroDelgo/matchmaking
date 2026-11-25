@@ -179,7 +179,9 @@ export class AuthController {
       status: recoveryReady ? "recovering" : "authenticated",
       recoveryReady,
     });
-    if (changed || !this.state.profile) void this.loadProfile(session.user.id);
+    if (session.user.is_anonymous) this.patch({ profile: null });
+    else if (changed || !this.state.profile)
+      void this.loadProfile(session.user.id);
   }
 
   private async loadProfile(userId: string) {
@@ -347,6 +349,35 @@ export class AuthController {
       this.acceptSession(data.session);
     }, true);
 
+  signInAsGuest = () =>
+    this.operation(async () => {
+      const client = this.requireClient(),
+        invalidation = this.sessionInvalidation;
+      const existing = await client.auth.getSession();
+      if (!this.running || invalidation !== this.sessionInvalidation)
+        throw new AuthUserError(
+          "A operação foi interrompida. Tente novamente.",
+        );
+      if (existing.error) throw existing.error;
+      if (this.state.session || existing.data.session)
+        throw new AuthUserError(
+          "Use sua sessão atual. Não trocamos sua identidade para entrar em um convite.",
+        );
+      this.suppressSession = false;
+      this.clearAccount();
+      const { data, error } = await client.auth.signInAnonymously();
+      if (!this.running || invalidation !== this.sessionInvalidation)
+        throw new AuthUserError(
+          "A operação foi interrompida. Tente novamente.",
+        );
+      if (error) throw error;
+      if (!data.session || data.session.user.is_anonymous !== true)
+        throw new AuthUserError(
+          "Não foi possível iniciar a sessão de convidado. Tente novamente.",
+        );
+      this.acceptSession(data.session);
+    }, true);
+
   signUp = (email: string, password: string) =>
     this.operation(async () => {
       const client = this.requireClient();
@@ -458,6 +489,10 @@ export class AuthController {
 
   updateNickname = (nickname: string) =>
     this.operation(async () => {
+      if (this.state.session?.user.is_anonymous)
+        throw new AuthUserError(
+          "Convidados usam o apelido informado no convite. O perfil recuperável exige uma conta.",
+        );
       const client = this.requireClient();
       const userId = this.state.session?.user.id;
       if (!userId)

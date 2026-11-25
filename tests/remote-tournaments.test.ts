@@ -506,3 +506,200 @@ test("rejeição definitiva não prende o formulário em uma intenção inválid
   expect(posts).toHaveLength(2);
   expect(posts[0].commandId).not.toBe(posts[1].commandId);
 });
+
+const inviteCredential = () => ({
+  kind: "token" as const,
+  value: Array.from(
+    { length: 43 },
+    (_, n) => "abcdefghijklmnopqrstuvwxyz"[n % 26],
+  ).join(""),
+});
+const admissionResult = () => ({
+  tournamentId: id,
+  revision: 2,
+  role: "participant" as const,
+  participantId: "p-member",
+  alreadyMember: false,
+});
+test("admissão guarda a intenção antes do POST e retoma resposta perdida com o mesmo comando após recarga", async () => {
+  const { journal, disk } = setup(),
+    posts: unknown[] = [];
+  disk.set("matchmaking-local-v1", "original");
+  let lost = true;
+  const request = jest.fn(async (url: unknown, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      expect((await journal.peek("invite-admission"))?.state).toBe("pending");
+      posts.push(JSON.parse(init.body as string));
+      if (lost) {
+        lost = false;
+        throw new Error("lost after commit");
+      }
+      return response(admissionResult());
+    }
+    return String(url).includes("/tournaments?")
+      ? response({ items: [], nextCursor: null })
+      : response({
+          tournamentId: id,
+          revision: 2,
+          tournament: tournamentFixture("draft"),
+          access: { role: "participant", participantId: "p-member" },
+        });
+  });
+  const a = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "session",
+      request,
+      journal,
+    ),
+    credential = inviteCredential();
+  await expect(a.acceptInvitation(credential, "Rival")).rejects.toThrow(
+    "Sem confirmação",
+  );
+  expect(await a.hasPendingAcceptance()).toBe(true);
+  const restored = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "session",
+    request,
+    journal,
+  );
+  expect((await restored.retryAcceptance()).role).toBe("participant");
+  expect(JSON.stringify(posts[0]) === JSON.stringify(posts[1])).toBe(true);
+  expect(await restored.hasPendingAcceptance()).toBe(false);
+  expect([...disk.values()].some((v) => v.includes(credential.value))).toBe(
+    false,
+  );
+  expect(disk.get("matchmaking-local-v1")).toBe("original");
+});
+
+test("admissão confirmada permanece confirmada se a releitura ficar offline", async () => {
+  const { journal } = setup(),
+    request = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      if (init?.method === "POST") return response(admissionResult());
+      throw new Error("offline after commit");
+    }),
+    client = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "session",
+      request,
+      journal,
+    );
+  const result = await client.acceptInvitation(inviteCredential(), "Rival");
+  expect(result.tournamentId).toBe(id);
+  expect(result.refreshPending).toBe(true);
+  expect(await client.hasPendingAcceptance()).toBe(false);
+  expect(
+    request.mock.calls.filter(([, init]) => init?.method === "POST"),
+  ).toHaveLength(1);
+});
+
+test("falha do journal bloqueia a aceitação antes de qualquer POST", async () => {
+  const { storage, journal } = setup(),
+    request = jest.fn();
+  storage.setItem = async () => {
+    throw new Error("disk full");
+  };
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "session",
+    request,
+    journal,
+  );
+  await expect(
+    client.acceptInvitation(inviteCredential(), "Rival"),
+  ).rejects.toThrow("guardar a tentativa");
+  expect(request).not.toHaveBeenCalled();
+});
+
+test("convite definitivamente recusado remove o segredo pendente sem disparar outra aceitação", async () => {
+  const { journal, disk } = setup(),
+    credential = inviteCredential(),
+    request = jest.fn(async () => response({ error: "INVITE_REVOKED" }, 410)),
+    client = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "session",
+      request,
+      journal,
+    );
+  await expect(client.acceptInvitation(credential, "Rival")).rejects.toThrow(
+    "revogado",
+  );
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(await client.hasPendingAcceptance()).toBe(false);
+  expect([...disk.values()].some((v) => v.includes(credential.value))).toBe(
+    false,
+  );
+});
+
+test("resposta tardia da admissão A não publica depois de logout nem envia intenção na conta B", async () => {
+  const { journal, storage } = setup(),
+    pending = deferred<Response>(),
+    request = jest.fn(() => pending.promise),
+    a = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "session-a",
+      request,
+      journal,
+    );
+  const operation = a.acceptInvitation(inviteCredential(), "Rival");
+  for (let n = 0; n < 20 && !request.mock.calls.length; n++)
+    await Promise.resolve();
+  expect(request).toHaveBeenCalledTimes(1);
+  const listener = jest.fn();
+  a.subscribe(listener);
+  a.dispose();
+  const b = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    id,
+    () => "session-b",
+    jest.fn(),
+    createJournal("b", storage, () => id),
+  );
+  expect(await b.hasPendingAcceptance()).toBe(false);
+  expect(b.getSnapshot().items).toHaveLength(0);
+  pending.resolve(response(admissionResult()));
+  await expect(operation).rejects.toThrow("Entre na sua conta");
+  expect(listener).not.toHaveBeenCalled();
+  expect(await a.hasPendingAcceptance()).toBe(true);
+});
+
+test("emissão com resposta perdida repete o comando e não persiste credenciais retornadas pelo servidor", async () => {
+  const { journal, disk } = setup(),
+    posts: unknown[] = [];
+  let lost = true;
+  const request = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      posts.push(JSON.parse(init?.body as string));
+      if (lost) {
+        lost = false;
+        throw new Error("committed response lost");
+      }
+      return response({
+        replayed: true,
+        invite: { id, role: "participant", status: "active" },
+      });
+    }),
+    client = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "session",
+      request,
+      journal,
+    );
+  await expect(
+    client.manageInvitation(id, "create_invite", {
+      role: "participant",
+      expiresInHours: 24,
+      maxUses: 4,
+    }),
+  ).rejects.toThrow("Sem confirmação");
+  expect(await client.hasPendingInvitationManagement(id)).toBe(true);
+  expect((await client.retryInvitationManagement(id)).replayed).toBe(true);
+  expect(JSON.stringify(posts[0]) === JSON.stringify(posts[1])).toBe(true);
+  expect(await client.hasPendingInvitationManagement(id)).toBe(false);
+  expect([...disk.values()].some((v) => v.includes("shareUrl"))).toBe(false);
+});

@@ -71,17 +71,36 @@ function AccountContent({ auth }: { auth: ReturnType<typeof useAuth> }) {
       ) : auth.session ? (
         <>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-            <Avatar name={auth.profile?.nickname ?? "Competidor"} size={56} />
+            <Avatar
+              name={
+                auth.session.user.is_anonymous
+                  ? "Convidado"
+                  : (auth.profile?.nickname ?? "Competidor")
+              }
+              size={56}
+            />
             <View style={{ flex: 1, gap: 6 }}>
               <Text variant="heading">
-                {auth.profile?.nickname ?? "Sua conta"}
+                {auth.session.user.is_anonymous
+                  ? "Convidado"
+                  : (auth.profile?.nickname ?? "Sua conta")}
               </Text>
               {auth.session.user.email ? (
                 <Text color={colors.muted}>{auth.session.user.email}</Text>
               ) : null}
-              <Chip label="Conta conectada" tone="success" />
+              <Chip
+                label={
+                  auth.session.user.is_anonymous
+                    ? "Sessão de convidado"
+                    : "Conta conectada"
+                }
+                tone="success"
+              />
             </View>
           </View>
+          {auth.session.user.is_anonymous && (
+            <Notice message="Esta identidade existe apenas nesta instalação. Ao sair, limpar os dados ou trocar de aparelho, você perde o acesso como este convidado. Campeonatos locais permanecem independentes." />
+          )}
           {auth.profile ? (
             <>
               <Field

@@ -21,6 +21,7 @@ export type { RemoteProfile, AuthState } from "./AuthController";
 type AuthActions = Pick<
   AuthController,
   | "signIn"
+  | "signInAsGuest"
   | "signUp"
   | "requestPasswordReset"
   | "completeCallback"
@@ -39,6 +40,7 @@ const unavailable = async (): Promise<never> => {
 const fallback: AuthContextValue = {
   ...signedOutAuthState,
   signIn: unavailable,
+  signInAsGuest: unavailable,
   signUp: unavailable,
   requestPasswordReset: unavailable,
   completeCallback: unavailable,
@@ -110,6 +112,7 @@ export function AuthProvider({
   const value: AuthContextValue = {
     ...state,
     signIn: controller.signIn,
+    signInAsGuest: controller.signInAsGuest,
     signUp: controller.signUp,
     requestPasswordReset: controller.requestPasswordReset,
     completeCallback: controller.completeCallback,

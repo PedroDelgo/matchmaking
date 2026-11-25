@@ -121,5 +121,12 @@ export function createJournal(
         delete e.remoteId;
         await write(d);
       }),
+    forget: (name: string, id: string) =>
+      serial(async () => {
+        const d = await read();
+        if (d.entries[name]?.id !== id) throw new Error("JOURNAL_UNAVAILABLE");
+        delete d.entries[name];
+        await write(d);
+      }),
   };
 }

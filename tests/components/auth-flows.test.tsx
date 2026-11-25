@@ -40,6 +40,7 @@ beforeEach(() => {
     busy: false,
     recoveryReady: false,
     signIn: jest.fn().mockResolvedValue(undefined),
+    signInAsGuest: jest.fn().mockResolvedValue(undefined),
     signUp: jest.fn().mockResolvedValue({ needsConfirmation: true }),
     requestPasswordReset: jest.fn().mockResolvedValue(undefined),
     completeCallback: jest.fn().mockResolvedValue({ recovery: false }),
@@ -226,12 +227,10 @@ test("callback preserva sb_flow_id e rejeita identificadores ambíguos", async (
   );
   await ui.unmount();
   jest.mocked(auth.completeCallback).mockClear();
-  jest
-    .mocked(useLocalSearchParams)
-    .mockReturnValue({
-      code: "codigo-unico",
-      sb_flow_id: ["flow-one", "flow-two"],
-    });
+  jest.mocked(useLocalSearchParams).mockReturnValue({
+    code: "codigo-unico",
+    sb_flow_id: ["flow-one", "flow-two"],
+  });
   const invalid = await render(<AuthCallbackScreen />);
   expect(invalid.getByText(/Este link é inválido ou expirou/)).toBeTruthy();
   expect(auth.completeCallback).not.toHaveBeenCalled();

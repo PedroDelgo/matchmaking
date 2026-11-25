@@ -72,6 +72,15 @@ function setup() {
       data: { session: session("A") },
       error: null as unknown,
     })),
+    signInAnonymously: jest.fn(async () => ({
+      data: {
+        session: {
+          ...session("guest"),
+          user: { ...session("guest").user, is_anonymous: true },
+        },
+      },
+      error: null as unknown,
+    })),
     signUp: jest.fn(async () => ({
       data: { session: null as Session | null },
       error: null as unknown,
@@ -123,6 +132,54 @@ function setup() {
     unsubscribe,
   };
 }
+
+test("convidado só inicia por ação explícita e não carrega perfil recuperável", async () => {
+  const s = setup();
+  s.controller.start();
+  await flush();
+  expect(s.auth.signInAnonymously).not.toHaveBeenCalled();
+  await s.controller.signInAsGuest();
+  await flush();
+  expect(s.controller.getSnapshot().session?.user.is_anonymous).toBe(true);
+  expect(s.controller.getSnapshot().profile).toBeNull();
+  expect(s.profiles).not.toHaveBeenCalled();
+  await expect(s.controller.updateNickname("Novo")).rejects.toThrow(
+    "Convidados",
+  );
+  s.controller.stop();
+});
+
+test("entrada como convidado não substitui sessão registrada no SDK", async () => {
+  const s = setup();
+  s.controller.start();
+  await flush();
+  s.auth.getSession.mockResolvedValue({
+    data: { session: session("A") },
+    error: null,
+  });
+  await expect(s.controller.signInAsGuest()).rejects.toThrow("sessão atual");
+  expect(s.auth.signInAnonymously).not.toHaveBeenCalled();
+  s.controller.stop();
+});
+
+test("resposta antiga de entrada anônima não reaparece depois de desmontar", async () => {
+  const s = setup(),
+    pending = deferred<Awaited<ReturnType<typeof s.auth.signInAnonymously>>>();
+  s.auth.signInAnonymously.mockImplementation(() => pending.promise);
+  s.controller.start();
+  await flush();
+  const result = s.controller.signInAsGuest();
+  await flush();
+  s.controller.stop();
+  const guest = {
+    ...session("guest"),
+    user: { ...session("guest").user, is_anonymous: true },
+  };
+  s.emit("SIGNED_IN", guest);
+  pending.resolve({ data: { session: guest }, error: null });
+  await expect(result).rejects.toThrow("interrompida");
+  expect(s.controller.getSnapshot().session).toBeNull();
+});
 
 test("armazenamento seguro recompõe sessão grande e publica só gerações completas", async () => {
   const values = new Map<string, string>();

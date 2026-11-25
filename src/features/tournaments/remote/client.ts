@@ -15,9 +15,48 @@ export type RemoteStatus =
   | "offline"
   | "refreshing";
 export type RemoteSnapshot = {
+  access?: {
+    role: "organizer" | "participant" | "viewer";
+    participantId?: string;
+  };
   tournamentId: string;
   revision: number;
   tournament: Tournament;
+};
+export type InviteCredential = { kind: "token" | "code"; value: string };
+export type InvitationSummary = {
+  id: string;
+  role: "participant" | "viewer";
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number;
+  uses: number;
+  status: "active" | "expired" | "revoked" | "exhausted";
+};
+export type AdmittedMember = {
+  userId: string;
+  role: "participant" | "viewer";
+  participantId?: string;
+  displayName: string;
+  createdAt: string;
+};
+export type AdmissionResult = {
+  tournamentId: string;
+  role: "organizer" | "participant" | "viewer";
+  participantId?: string;
+  revision: number;
+  alreadyMember: boolean;
+  refreshPending?: boolean;
+  journalPending?: boolean;
+};
+export type InvitationManagementResult = {
+  invite?: InvitationSummary;
+  shareUrl?: string;
+  code?: string;
+  development?: boolean;
+  replayed?: boolean;
+  removed?: boolean;
+  journalPending?: boolean;
 };
 export type TournamentSummary = {
   tournamentId: string;
@@ -70,6 +109,31 @@ export function remoteMessage(code: string): string {
         UNAUTHORIZED:
           "Entre na sua conta novamente para consultar os campeonatos na nuvem.",
         FORBIDDEN: "Sua conta não tem acesso a este campeonato.",
+        RECOVERABLE_ACCOUNT_REQUIRED:
+          "Gerenciar campeonatos exige uma conta recuperável. Você pode continuar jogando como convidado ou criar torneios neste dispositivo.",
+        INVALID_INVITE:
+          "Este convite não está disponível. Confira o código ou peça um novo convite ao organizador.",
+        INVITE_EXPIRED: "Este convite expirou. Peça um novo ao organizador.",
+        INVITE_REVOKED:
+          "Este convite foi revogado. Peça um novo ao organizador.",
+        INVITE_EXHAUSTED:
+          "Todas as utilizações deste convite foram preenchidas. Peça outro ao organizador.",
+        INVITE_RATE_LIMITED:
+          "Muitas tentativas de convite. Aguarde um minuto antes de tentar novamente.",
+        INVITES_UNAVAILABLE:
+          "Os convites ainda não foram configurados neste servidor.",
+        INVITE_LIMIT_REACHED:
+          "Há muitos convites ativos. Revogue um convite antes de criar outro.",
+        MEMBER_LIMIT_REACHED:
+          "Esta sala atingiu o limite de 200 acessos. O organizador pode remover acessos antigos de espectadores.",
+        TOURNAMENT_FULL:
+          "A sala está completa. Peça ao organizador um convite para assistir.",
+        TOURNAMENT_STARTED:
+          "Este campeonato já começou e não recebe novos jogadores. Você pode pedir um convite para assistir.",
+        DISPLAY_NAME_REQUIRED: "Informe seu apelido para entrar na competição.",
+        REMOVE_PLAYER_FIRST:
+          "Remova primeiro a vaga competitiva, durante a preparação. O acesso de espectador pode ser removido separadamente.",
+        NOTHING_PENDING: "Não há uma tentativa pendente para retomar.",
         OFFLINE:
           "Sem confirmação do servidor. Verifique a conexão e tente novamente; seus dados locais continuam disponíveis.",
         IMPORT_MISMATCH:
@@ -158,6 +222,167 @@ export class RemoteTournaments {
     };
   };
   getSnapshot = () => this.state;
+  invitationList(
+    id: string,
+    kind: "invites",
+  ): Promise<{ items: InvitationSummary[] }>;
+  invitationList(
+    id: string,
+    kind: "members",
+  ): Promise<{ items: AdmittedMember[] }>;
+  invitationList(
+    id: string,
+    kind: "invites" | "members",
+  ): Promise<{ items: (InvitationSummary | AdmittedMember)[] }> {
+    return this.http(`/tournaments/${encodeURIComponent(id)}/${kind}`);
+  }
+  async hasPendingInvitationManagement(id: string) {
+    return (await this.journal.peek(`invite-admin:${id}`))?.state === "pending";
+  }
+  manageInvitation(
+    id: string,
+    type: "create_invite" | "revoke_invite" | "remove_member",
+    payload: unknown,
+  ): Promise<InvitationManagementResult> {
+    return this.invitationManagement(id, {
+      tournamentId: id,
+      commandVersion: 1,
+      type,
+      payload,
+    });
+  }
+  retryInvitationManagement(id: string): Promise<InvitationManagementResult> {
+    return this.invitationManagement(id);
+  }
+  private async invitationManagement(
+    id: string,
+    input?: unknown,
+  ): Promise<InvitationManagementResult> {
+    if (this.state.busy) throw new RemoteError("PENDING_OPERATION");
+    this.publish({ busy: true });
+    const key = `invite-admin:${id}`;
+    let entry: Awaited<ReturnType<typeof this.journal.peek>>;
+    try {
+      if (input)
+        entry = await this.journal.prepare(key, canonicalJson(input), input);
+      else entry = await this.journal.peek(key);
+      if (!entry || entry.state !== "pending")
+        throw new RemoteError("NOTHING_PENDING");
+      const body: Record<string, unknown> = {
+          ...(entry.payload as Record<string, unknown>),
+          commandId: entry.id,
+        },
+        type = body.type;
+      const path =
+        type === "create_invite"
+          ? "/invites"
+          : type === "revoke_invite"
+            ? "/invites/revoke"
+            : "/members/remove";
+      const result = await this.http<InvitationManagementResult>(path, body);
+      try {
+        await this.journal.finish(key, entry.id, id);
+      } catch {
+        result.journalPending = true;
+      }
+      return result;
+    } catch (e) {
+      if (
+        entry &&
+        e instanceof RemoteError &&
+        [400, 403, 404, 409, 410, 422].includes(e.status) &&
+        !["RETRY_SAME_COMMAND", "REVISION_CONFLICT"].includes(e.code)
+      )
+        await this.journal.reject(key, entry.id).catch(() => {});
+      if (e instanceof RemoteError) throw e;
+      throw new RemoteError(
+        e instanceof Error && e.message === "PENDING_OPERATION"
+          ? e.message
+          : "JOURNAL_UNAVAILABLE",
+      );
+    } finally {
+      this.publish({ busy: false });
+    }
+  }
+  async hasPendingAcceptance() {
+    return (await this.journal.peek("invite-admission"))?.state === "pending";
+  }
+  acceptInvitation(
+    credential: InviteCredential,
+    displayName?: string,
+  ): Promise<AdmissionResult> {
+    return this.admission({
+      commandVersion: 1,
+      credential: {
+        ...credential,
+        value:
+          credential.kind === "code"
+            ? credential.value.toUpperCase().replace(/[ -]/g, "")
+            : credential.value,
+      },
+      ...(displayName === undefined ? {} : { displayName: displayName.trim() }),
+    });
+  }
+  retryAcceptance(): Promise<AdmissionResult> {
+    return this.admission();
+  }
+  private async admission(input?: unknown): Promise<AdmissionResult> {
+    if (this.state.busy) throw new RemoteError("PENDING_OPERATION");
+    this.publish({ busy: true });
+    const key = "invite-admission";
+    let entry: Awaited<ReturnType<typeof this.journal.peek>>;
+    try {
+      if (input)
+        entry = await this.journal.prepare(key, canonicalJson(input), input);
+      else entry = await this.journal.peek(key);
+      if (!entry || entry.state !== "pending")
+        throw new RemoteError("NOTHING_PENDING");
+      const result = await this.http<AdmissionResult>("/invite-acceptances", {
+        ...(entry.payload as Record<string, unknown>),
+        commandId: entry.id,
+      });
+      if (
+        !result ||
+        typeof result.tournamentId !== "string" ||
+        !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(
+          result.tournamentId,
+        ) ||
+        !Number.isSafeInteger(result.revision) ||
+        !["organizer", "participant", "viewer"].includes(result.role)
+      )
+        throw new RemoteError("INVALID_SNAPSHOT");
+      // Confirmed capability credentials have no reason to remain on disk.
+      try {
+        await this.journal.forget(key, entry.id);
+      } catch {
+        result.journalPending = true;
+      }
+      this.listGeneration++;
+      try {
+        await this.detail(result.tournamentId, true);
+      } catch {
+        result.refreshPending = true;
+      }
+      void this.list();
+      return result;
+    } catch (e) {
+      if (
+        entry &&
+        e instanceof RemoteError &&
+        [400, 403, 404, 409, 410, 422].includes(e.status) &&
+        e.code !== "RETRY_SAME_COMMAND"
+      )
+        await this.journal.forget(key, entry.id).catch(() => {});
+      if (e instanceof RemoteError) throw e;
+      throw new RemoteError(
+        e instanceof Error && e.message === "PENDING_OPERATION"
+          ? e.message
+          : "JOURNAL_UNAVAILABLE",
+      );
+    } finally {
+      this.publish({ busy: false });
+    }
+  }
   dispose() {
     this.abort.abort();
     this.accessToken = null;

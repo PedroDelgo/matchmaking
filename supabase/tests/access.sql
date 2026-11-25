@@ -27,10 +27,10 @@ begin
     raise exception 'Profile trigger directly executable by client';
   end if;
   if has_column_privilege('matchmaking_command','public.tournaments','owner_user_id','UPDATE') or
-     has_table_privilege('matchmaking_command','public.tournament_members','INSERT,UPDATE,DELETE') then
-    raise exception 'Command role can change access';
+     has_table_privilege('matchmaking_command','public.tournament_members','TRUNCATE') then
+    raise exception 'Unsafe ownership/access grants';
   end if;
-  foreach item in array array['participant_ids','operation_receipts','tournament_imports','tournament_events','command_receipts'] loop
+  foreach item in array array['participant_ids','operation_receipts','tournament_imports','tournament_events','command_receipts','invite_receipts','invite_events'] loop
     if not (select relrowsecurity from pg_class where oid=('matchmaking_private.'||item)::regclass) or
        has_table_privilege('authenticated','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
        has_table_privilege('anon','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
@@ -39,4 +39,17 @@ begin
       raise exception 'Unsafe private metadata grants or RLS: %',item;
     end if;
   end loop;
+  foreach item in array array['tournament_invites','invite_rate_limits'] loop
+    if not (select relrowsecurity from pg_class where oid=('matchmaking_private.'||item)::regclass) or
+       has_table_privilege('authenticated','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
+       has_table_privilege('anon','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') or
+       has_table_privilege('service_role','matchmaking_private.'||item,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
+      raise exception 'Unsafe invitation grants/RLS: %',item;
+    end if;
+  end loop;
+  if has_column_privilege('matchmaking_command','matchmaking_private.tournament_invites','token_digest','UPDATE') or
+     has_column_privilege('matchmaking_command','matchmaking_private.tournament_invites','code_digest','UPDATE') or
+     has_function_privilege('authenticated','matchmaking_private.require_recoverable_owner()','EXECUTE') then
+    raise exception 'Unsafe invitation/owner trigger grants';
+  end if;
 end $$;

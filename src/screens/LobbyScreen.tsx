@@ -30,6 +30,7 @@ import { useTournament } from "../features/tournaments/useTournament";
 import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
 import { ImportTournament } from "../components/ImportTournament";
 import { useAuth } from "../features/auth/AuthProvider";
+import { InviteManager } from "../components/InviteManager";
 
 export function LobbyScreen() {
   const { id, created } = useLocalSearchParams<{
@@ -131,7 +132,11 @@ export function LobbyScreen() {
       <PageHeading
         eyebrow={`${t.modality} / MATA-MATA`}
         title={t.name}
-        description={`${t.capacity} vagas · Organizador: ${profile.nickname}`}
+        description={
+          source.cloud
+            ? `${t.capacity} vagas · ${source.canManage ? "Você organiza" : source.access?.role === "participant" ? "Você participa" : "Você acompanha"}`
+            : `${t.capacity} vagas · Organizador: ${profile.nickname}`
+        }
         action={
           <Chip
             label={
@@ -202,12 +207,14 @@ export function LobbyScreen() {
                 <View style={{ flex: 1 }}>
                   <Text variant="heading">Todo mundo confirmado.</Text>
                   <Text variant="caption" color={colors.muted}>
-                    A sala está pronta. Você decide quando sortear.
+                    {source.canManage
+                      ? "A sala está pronta. Você decide quando sortear."
+                      : "A sala está pronta. Aguarde o sorteio do organizador."}
                   </Text>
                 </View>
               </Animated.View>
             )}
-            {t.status === "draft" && (
+            {t.status === "draft" && source.canManage && (
               <>
                 <View
                   style={{
@@ -314,12 +321,18 @@ export function LobbyScreen() {
                       </Text>
                       {p && (
                         <Text variant="caption" color={colors.muted}>
-                          {p.profileId === profile.id ? "Você · " : ""}Jogador{" "}
-                          {i + 1}
+                          {(
+                            source.cloud
+                              ? source.access?.participantId === p.id
+                              : p.profileId === profile.id
+                          )
+                            ? "Você · "
+                            : ""}
+                          Jogador {i + 1}
                         </Text>
                       )}
                     </View>
-                    {p && t.status === "draft" && (
+                    {p && t.status === "draft" && source.canManage && (
                       <Button
                         label="Remover"
                         variant="ghost"
@@ -379,7 +392,10 @@ export function LobbyScreen() {
                 t.status === "draft" ? "Sortear confrontos" : "Ver chaveamento"
               }
               icon="shuffle"
-              disabled={source.busy || (t.status === "draft" && !full)}
+              disabled={
+                source.busy ||
+                (t.status === "draft" && (!full || !source.canManage))
+              }
               onPress={() =>
                 t.status === "draft"
                   ? start()
@@ -393,42 +409,23 @@ export function LobbyScreen() {
               </Text>
             )}
           </Panel>
-          <Panel style={{ gap: 16 }}>
-            <View
-              style={{ flexDirection: "row", justifyContent: "space-between" }}
-            >
+          {source.cloud ? (
+            <InviteManager
+              key={`${source.id}:${source.client?.userId}`}
+              tournamentId={source.id}
+              canManage={source.canManage}
+              status={t.status}
+            />
+          ) : (
+            <Panel style={{ gap: 16 }}>
               <Text variant="heading">Convide a galera</Text>
-              <Chip label="Em breve" />
-            </View>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-around",
-                paddingVertical: 8,
-              }}
-            >
-              {[
-                { icon: "link-outline" as const, label: "Link" },
-                { icon: "qr-code-outline" as const, label: "QR Code" },
-                { icon: "keypad-outline" as const, label: "Código" },
-              ].map((item) => (
-                <View
-                  key={item.label}
-                  accessibilityState={{ disabled: true }}
-                  style={{ alignItems: "center", gap: 8 }}
-                >
-                  <Icon name={item.icon} size={24} color={colors.muted} />
-                  <Text variant="caption" color={colors.muted}>
-                    {item.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <Text variant="caption" color={colors.muted}>
-              Nesta versão, os participantes são adicionados por você, neste
-              dispositivo.
-            </Text>
-          </Panel>
+              <Chip label="Campeonato local" />
+              <Text color={colors.muted}>
+                Para convidar amigos por link, código ou QR, salve uma cópia na
+                sua conta. O original continua neste dispositivo.
+              </Text>
+            </Panel>
+          )}
           {!source.cloud ? (
             <Button
               label="Excluir campeonato"

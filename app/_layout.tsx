@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { Stack, ErrorBoundaryProps } from "expo-router";
+import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
@@ -57,6 +58,9 @@ export default function RootLayout() {
         <RemoteTournamentProvider>
           <FontContext.Provider value={fontsLoaded}>
             <StatusBar style="dark" />
+            <Head>
+              <meta name="referrer" content="no-referrer" />
+            </Head>
             {storageError && <Notice tone="error" message={storageError} />}
             {fontError && (
               <Notice message="Não foi possível carregar as fontes. Estamos usando as fontes do dispositivo." />

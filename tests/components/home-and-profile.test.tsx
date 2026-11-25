@@ -16,17 +16,13 @@ beforeEach(() =>
     storageError: null,
   }),
 );
-test("Home vazia abre a criação real e explica código sem simular ingresso", async () => {
+test("Home vazia abre a criação e encaminha código para o ingresso real", async () => {
   const ui = await render(<HomeScreen />);
   expect(ui.getByText("Seu primeiro campeonato começa aqui.")).toBeTruthy();
   await fireEvent.press(ui.getByRole("button", { name: "Criar campeonato" }));
   expect(router.push).toHaveBeenCalledWith("/tournament/create");
   await fireEvent.press(ui.getByRole("button", { name: "Entrar com código" }));
-  expect(
-    ui.getByText(/Convites por código, link e QR Code estarão disponíveis/),
-  ).toBeTruthy();
-  await fireEvent.press(ui.getByRole("button", { name: "Entendi" }));
-  expect(ui.queryByText("A galera vai poder entrar.")).toBeNull();
+  expect(router.push).toHaveBeenLastCalledWith("/invite");
 });
 test("Home exibe estados, progresso e destinos dos dados locais", async () => {
   const tournaments = [

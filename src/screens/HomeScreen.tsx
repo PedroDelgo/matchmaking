@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Pressable, Modal } from "react-native";
+import { View, Pressable } from "react-native";
 import { router } from "expo-router";
 import { Shell } from "../components/Shell";
 import {
@@ -14,7 +14,6 @@ import { Motion } from "../components/Motion";
 import { TournamentGrid } from "../components/TournamentGrid";
 import { useAppStore } from "../store/useAppStore";
 import { colors, fonts, typography } from "../theme/tokens";
-import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
 import { CloudListNotice } from "../components/CloudListNotice";
@@ -138,11 +137,9 @@ function BracketArtwork() {
 export function HomeScreen() {
   const remote = useRemoteTournaments(),
     [source, setSource] = useState("all");
-  const reduced = useReducedMotion();
   const tournaments = useAppStore((s) => s.tournaments),
     profile = useAppStore((s) => s.profile);
-  const [join, setJoin] = useState(false),
-    { desktop: wide, tablet, compact } = useResponsiveLayout();
+  const { desktop: wide, tablet, compact } = useResponsiveLayout();
   const total = tournaments.length + remote.items.length;
   const ongoing = [...tournaments, ...remote.items].filter(
       (t) => t.status === "active",
@@ -245,7 +242,7 @@ export function HomeScreen() {
                 label="Entrar com código"
                 variant="ghost"
                 icon="enter-outline"
-                onPress={() => setJoin(true)}
+                onPress={() => router.push("/invite")}
               />
             </View>
           </View>
@@ -482,33 +479,6 @@ export function HomeScreen() {
           ))}
         </View>
       </View>
-      <Modal
-        visible={join}
-        transparent
-        animationType={reduced ? "none" : "fade"}
-        onRequestClose={() => setJoin(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: colors.overlay,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <Panel style={{ maxWidth: 420, width: "100%", gap: 16 }}>
-            <Icon name="enter-outline" size={32} color={colors.primaryDark} />
-            <Text variant="title">A galera vai poder entrar.</Text>
-            <Text color={colors.muted}>
-              Convites por código, link e QR Code estarão disponíveis em uma
-              próxima versão. Por enquanto, adicione os participantes no seu
-              dispositivo.
-            </Text>
-            <Button label="Entendi" onPress={() => setJoin(false)} />
-          </Panel>
-        </View>
-      </Modal>
     </Shell>
   );
 }

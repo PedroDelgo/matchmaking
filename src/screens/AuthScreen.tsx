@@ -112,7 +112,11 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
         await auth.signIn(normalizedEmail, password);
         if (mounted.current)
           router.replace(
-            returnTo === "create" ? "/tournament/create" : "/profile",
+            returnTo === "create"
+              ? "/tournament/create"
+              : returnTo === "invite"
+                ? "/invite"
+                : "/profile",
           );
       } else if (mode === "sign-up") {
         const result = await auth.signUp(normalizedEmail, password);

@@ -20,6 +20,8 @@ export function useTournament(explicitId?: string) {
   return {
     tournament,
     cloud,
+    access: cloud ? detail?.data?.access : undefined,
+    canManage: !cloud || detail?.data?.access?.role === "organizer",
     id,
     client,
     busy: cloud && remote.busy,

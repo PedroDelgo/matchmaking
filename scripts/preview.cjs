@@ -12,6 +12,8 @@ const mime = {
 };
 http
   .createServer((req, res) => {
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Cache-Control", "no-store");
     let pathname;
     try {
       pathname = decodeURIComponent(

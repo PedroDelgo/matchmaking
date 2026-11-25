@@ -187,6 +187,42 @@ function MatchContent({
         ? m.participant1Id
         : m.participant2Id;
   const changedWinner = !!m.winnerId && predicted !== m.winnerId;
+  if (!source.canManage)
+    return (
+      <Shell>
+        <RemoteTournamentNotice source={source} />
+        <PageHeading
+          eyebrow={t.name}
+          title="Acompanhe o confronto"
+          description="Somente o organizador registra e corrige os resultados."
+        />
+        <Panel style={{ gap: 20 }}>
+          <Text variant="heading">
+            {participantLabel(t, m.participant1Id)} ×{" "}
+            {participantLabel(t, m.participant2Id)}
+          </Text>
+          <Text variant="display">
+            {m.score1 ?? "—"} × {m.score2 ?? "—"}
+          </Text>
+          <Notice
+            message={
+              m.status === "completed"
+                ? `${participantLabel(t, m.winnerId)} venceu.`
+                : "Aguardando o resultado confirmado pelo organizador."
+            }
+          />
+          <Button
+            label="Atualizar resultado"
+            variant="outline"
+            onPress={() => void source.reload()?.catch(() => {})}
+          />
+          <Button
+            label="Voltar ao chaveamento"
+            onPress={() => router.dismissTo(source.href("bracket"))}
+          />
+        </Panel>
+      </Shell>
+    );
   const validate = () => {
     if (
       !/^\d+$/.test(a) ||

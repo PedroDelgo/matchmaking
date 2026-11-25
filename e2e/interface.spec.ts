@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { tournamentFixture } from "../tests/fixtures/tournaments";
 
-test("Home vazia, convite futuro e navegação principal funcionam", async ({
+test("Home vazia, entrada por código e navegação principal funcionam", async ({
   page,
 }, info) => {
   await page.goto("/");
@@ -18,9 +18,8 @@ test("Home vazia, convite futuro e navegação principal funcionam", async ({
     .getByRole("button", { name: "Entrar com código", exact: true })
     .click();
   await expect(
-    page.getByText(/Convites por código, link e QR Code estarão disponíveis/),
+    page.getByLabel("Código do convite", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Entendi", exact: true }).click();
   await page.getByRole("tab", { name: "Torneios", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "Torneios", exact: true }),

@@ -23,6 +23,7 @@ import { Motion } from "./Motion";
 import { motion } from "../theme/motion";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import type { TournamentSummary } from "../features/tournaments/remote/client";
+import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
 
 export const statusLabel = {
   draft: "Em preparação",
@@ -183,6 +184,10 @@ export function MatchCard({
 }) {
   const reduced = useReducedMotion();
   const params = useLocalSearchParams<{ id?: string; source?: string }>();
+  const remote = useRemoteTournaments(),
+    canManage =
+      params.source !== "cloud" ||
+      remote.details[params.id ?? ""]?.data?.access?.role === "organizer";
   const pressScale = useSharedValue(1);
   const feedback = useAnimatedStyle(() => ({
     transform: [{ scale: pressScale.get() }],
@@ -192,7 +197,7 @@ export function MatchCard({
     <InteractiveCard
       accessibilityRole="button"
       accessibilityLabel={`Partida ${m.positionIndex + 1}, ${t.rounds[m.roundIndex]?.label}`}
-      accessibilityHint={`${participantLabel(t, m.participant1Id)} contra ${participantLabel(t, m.participant2Id)}.${m.status === "completed" ? ` Placar ${m.score1} a ${m.score2}. Vencedor: ${participantLabel(t, m.winnerId)}.` : m.status === "ready" ? " Registrar placar." : " Aguardando resultados anteriores."}`}
+      accessibilityHint={`${participantLabel(t, m.participant1Id)} contra ${participantLabel(t, m.participant2Id)}.${m.status === "completed" ? ` Placar ${m.score1} a ${m.score2}. Vencedor: ${participantLabel(t, m.winnerId)}.` : m.status === "ready" ? (canManage ? " Registrar placar." : " Acompanhar confronto.") : " Aguardando resultados anteriores."}`}
       onPress={() =>
         router.push(
           `/match/${encodeURIComponent(m.id)}?tournamentId=${params.source === "cloud" ? params.id : t.id}${params.source === "cloud" ? "&source=cloud" : ""}`,
@@ -238,7 +243,9 @@ export function MatchCard({
                 {m.status === "completed"
                   ? "✓ Encerrado"
                   : m.status === "ready"
-                    ? "Registrar placar →"
+                    ? canManage
+                      ? "Registrar placar →"
+                      : "Acompanhar confronto →"
                     : "Aguardando"}
               </Text>
             </View>

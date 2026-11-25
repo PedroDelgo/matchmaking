@@ -5,6 +5,7 @@ import { CommandError } from "./commands";
 import { createCommandService } from "./service";
 import { createTournamentService } from "./tournaments";
 import { createInviteService } from "./invites";
+import { parseCorsOrigins } from "./cors";
 
 const databaseUrl = process.env.DATABASE_URL,
   authUrl = process.env.SUPABASE_AUTH_URL;
@@ -26,25 +27,7 @@ const invites = createInviteService(pool, {
   pepper: process.env.MATCHMAKING_INVITE_PEPPER,
   baseUrl: process.env.MATCHMAKING_INVITE_BASE_URL,
 });
-const origins = (
-  process.env.CORS_ORIGINS ?? "http://localhost:8081,http://127.0.0.1:8081"
-).split(",");
-if (
-  origins.some((o) => {
-    try {
-      return (
-        new URL(o).origin !== o ||
-        (!o.startsWith("https://") &&
-          !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(o))
-      );
-    } catch {
-      return true;
-    }
-  })
-)
-  throw new Error(
-    "CORS_ORIGINS must contain explicit HTTPS or loopback origins",
-  );
+const origins = parseCorsOrigins(process.env.CORS_ORIGINS, process.env.NODE_ENV);
 const server = createServer(async (request, response) => {
   response.setHeader("Content-Type", "application/json");
   response.setHeader("Cache-Control", "no-store");

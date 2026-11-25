@@ -117,6 +117,9 @@ test("compiled HTTP service verifies JWKS and commits results/corrections with t
       DATABASE_URL: process.env.MATCHMAKING_COMMAND_TEST_URL,
       SUPABASE_AUTH_URL: issuer,
       PORT: "0",
+      NODE_ENV: "development",
+      CORS_ORIGINS:
+        "http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.20:8081",
     },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
@@ -177,6 +180,35 @@ test("compiled HTTP service verifies JWKS and commits results/corrections with t
       socket.once("error", reject);
     });
     assert.match(malformed, /^HTTP\/1\.1 400 /);
+    const allowedPreflight = await fetch(`${origin}/invite-preview`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://192.168.1.20:8081",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "X-Invite-Token",
+      },
+    });
+    assert.equal(allowedPreflight.status, 204);
+    assert.equal(
+      allowedPreflight.headers.get("access-control-allow-origin"),
+      "http://192.168.1.20:8081",
+    );
+    assert.equal(allowedPreflight.headers.get("vary"), "Origin");
+    for (const rejectedOrigin of [
+      "http://192.168.1.21:8081",
+      "http://192.168.1.20:8082",
+      "http://8.8.8.8:8081",
+    ]) {
+      const rejectedPreflight = await fetch(`${origin}/invite-preview`, {
+        method: "OPTIONS",
+        headers: { Origin: rejectedOrigin },
+      });
+      assert.equal(rejectedPreflight.status, 403);
+      assert.equal(
+        rejectedPreflight.headers.get("access-control-allow-origin"),
+        null,
+      );
+    }
     assert.equal((await send({ actorId: owner })).status, 401);
     assert.equal(
       (await send({ ...command(id, t.matches[0].id), actorId: owner }, jwt))

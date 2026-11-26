@@ -26,6 +26,7 @@
     "auth:local": "node scripts/auth-local.mjs start",
     "api:local": "node scripts/auth-local.mjs api",
     "backend:test:auth": "node scripts/auth-local.mjs test",
+    "backend:test:realtime": "node scripts/auth-local.mjs realtime",
     "backend:test:db:local": "node scripts/auth-local.mjs db",
     "test:auth:e2e": "node scripts/auth-local.mjs e2e"
   },

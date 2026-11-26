@@ -12,7 +12,7 @@ const mode = process.argv[2] ?? "start";
 process.chdir(fileURLToPath(new URL("../", import.meta.url)));
 const cli = "node_modules/supabase/dist/supabase.js";
 const excluded =
-  "realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
+  "storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
 
 function run(file, args, env = process.env, capture = false) {
   const child = spawnSync(process.execPath, [file, ...args], {
@@ -167,7 +167,7 @@ try {
     process.stdout.write(
       `Auth/API: ${status.API_URL}\nMailpit: ${status.MAILPIT_URL}\n`,
     );
-  } else if (["test", "e2e", "db", "api"].includes(mode)) {
+  } else if (["test", "e2e", "db", "api", "realtime"].includes(mode)) {
     const status = localStatus();
     const publicEnv = publicEnvironment(status);
     const env = {
@@ -179,7 +179,7 @@ try {
       MATCHMAKING_TEST_DATABASE_URL: status.DB_URL,
       MATCHMAKING_INVITE_PEPPER: localInvitePepper(),
     };
-    if (mode === "test" || mode === "db" || mode === "api" || mode === "e2e") {
+    if (["test", "db", "api", "e2e", "realtime"].includes(mode)) {
       run(
         "node_modules/esbuild/bin/esbuild",
         [
@@ -195,16 +195,18 @@ try {
       );
       if (mode === "api")
         await withLocalApi(status, () => {}, { manual: true });
-      else if (mode === "test" || mode === "db")
+      else if (["test", "db", "realtime"].includes(mode))
         run(
           "node_modules/tsx/dist/cli.mjs",
-          mode === "test"
-            ? [
-                "--test",
-                "backend/test/auth.integration.ts",
-                "backend/test/invites.auth.integration.ts",
-              ]
-            : ["backend/test/run-database.ts"],
+          mode === "realtime"
+            ? ["--test", "backend/test/realtime.auth.integration.ts"]
+            : mode === "test"
+              ? [
+                  "--test",
+                  "backend/test/auth.integration.ts",
+                  "backend/test/invites.auth.integration.ts",
+                ]
+              : ["backend/test/run-database.ts"],
           env,
         );
     }
@@ -235,7 +237,7 @@ try {
           { ...env, MATCHMAKING_API_URL: api },
         );
       });
-  } else throw new Error("Use start, test, db, api or e2e.");
+  } else throw new Error("Use start, test, db, api, realtime or e2e.");
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
   process.exitCode = 1;

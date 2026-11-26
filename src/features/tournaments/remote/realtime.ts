@@ -104,16 +104,21 @@ export class TournamentRealtime {
     this.active = active;
     this.entries.forEach((entry, id) => {
       this.close(entry);
-      if (entry.state.status === "access-ended") return;
       if (active) void this.start(id, entry);
-      else this.status(id, entry, "offline");
+      else if (entry.state.status !== "access-ended")
+        this.status(id, entry, "offline");
     });
   }
   /** A token rotation must reconcile even when the SDK keeps its socket open. */
   refresh() {
     if (!this.active || this.disposed) return;
     this.entries.forEach((entry, id) => {
-      if (entry.state.status !== "access-ended") this.schedule(id, entry);
+      if (entry.state.status === "access-ended") {
+        // A previous 401 may have been temporary. A new identity validation or
+        // token still has to pass the API before any private channel is opened.
+        this.close(entry);
+        void this.start(id, entry);
+      } else this.schedule(id, entry);
     });
   }
   accepted(id: string, sequence = 0) {
@@ -281,7 +286,11 @@ export class TournamentRealtime {
       this.status(
         id,
         entry,
-        entry.dirty ? "updating" : entry.connected ? "connected" : "reconnecting",
+        entry.dirty
+          ? "updating"
+          : entry.connected
+            ? "connected"
+            : "reconnecting",
       );
     } catch (error) {
       if (!this.current(id, entry, generation)) return;

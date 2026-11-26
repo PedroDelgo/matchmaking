@@ -2,7 +2,7 @@
 
 Execução local iniciada em **26/11/2026**. Supabase Realtime informa alterações confirmadas; PostgreSQL, API e motor continuam decidindo o estado. Modo local, envelope v1, logo e identidade visual preservados. Sem serviço público, push ou deploy.
 
-**Registro em validação final:** nesta retomada, 194 Jest/30 suítes, TypeScript app/backend, ESLint, 5 Node, 48 PostgreSQL, 15 Auth e 9 Realtime passaram. A matriz completa de 112 casos de navegador está em execução. Homologação nativa permanece pendente.
+**Registro em validação final:** nesta retomada, 199 Jest/30 suítes, TypeScript app/backend, ESLint, 5 Node, 48 PostgreSQL, 15 Auth e 9 Realtime passaram. A primeira matriz de 112 casos de navegador está em execução; haverá nova rodada com a correção final de renovação abaixo. Homologação nativa permanece pendente.
 
 ### Auditoria da retomada
 
@@ -105,6 +105,8 @@ Detalhe lê `syncSequence` e agregado na mesma transação consistente. Cache n�
 
 Cercas de geração abrangem GET, operação confirmada, término do journal e fallback de atualização. Journal/envelope da 5C/5D não mudou. Sem replay automático de escrita, confirmação otimista ou escrita da sync no `matchmaking-local-v1`.
 
+A revisão desta retomada reproduziu uma falha adicional: 401 anterior deixava a assinatura encerrada mesmo após renovar a mesma identidade. Agora renovação/foreground refazem GET autorizado antes de reinscrever; membro ainda removido continua bloqueado, sem canal. Se um GET iniciado com JWT antigo só receber 401 depois de o token mudar, ele pode repetir **uma única leitura** com o token atual. Negativa persistente encerra o acesso; POST nunca é reaplicado por esse mecanismo. Cinco testes de regressão cobrem a recuperação, a corrida, o limite da repetição e ausência de reenvio de escrita. Quatro falharam antes das correções; os cinco e toda a suíte passaram depois (**199/30**).
+
 ## Fluxos e interface
 
 | Área | Comportamento |
@@ -129,7 +131,7 @@ Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fe
 | Verificação | Resultado registrado |
 | --- | --- |
 | TypeScript app/backend / ESLint | Aprovados novamente nesta retomada |
-| Jest/RNTL | **194 testes / 30 suítes**, aprovados nesta retomada |
+| Jest/RNTL | **199 testes / 30 suítes**, aprovados nesta retomada |
 | Node | **5 aprovados** nesta retomada |
 | PostgreSQL real | **48 aprovados**, 37 anteriores + 11 sinais |
 | Auth real | **15 aprovados** nesta retomada |
@@ -187,11 +189,11 @@ npm.cmd run test:auth:e2e
 npx.cmd expo export --platform android --platform ios --output-dir .artifacts/stage5e-native
 ```
 
-Sem a variável, runner Realtime falha no restart em vez de declarar aprovado/skipped. Confere nome/labels antes de parar o container. Execute DB/Auth/Realtime/E2E em sequência. `test:auth:e2e` inicia API efêmera, exporta só configurações públicas e inclui todos os casos reais. Não exporte sobre `dist` durante a suíte. `test:e2e` simples sem variáveis deixa integrações skipped e não substitui essa prova.
+Sem a variável, runner Realtime falha no restart em vez de declarar aprovado/skipped. Confere o nome exato antes de parar o container e verifica sua saúde após reiniciar. Execute DB/Auth/Realtime/E2E em sequência. `test:auth:e2e` inicia API efêmera, exporta só configurações públicas e inclui todos os casos reais. Não exporte sobre `dist` durante a suíte. `test:e2e` simples sem variáveis deixa integrações skipped e não substitui essa prova.
 
 ## Galaxy S25 Ultra e segundo dispositivo — pendente
 
-Sem aparelho/emulador/development build instalado. ADB/JDK não encontrados no PATH; bundles não são APK/IPA. LAN não é internet; túnel Expo não encaminha Auth/API/Realtime.
+O usuário informou já ter executado o app pelo Expo Go. Nesta retomada não houve execução da 5E em aparelho/emulador/development build instalado. ADB/JDK não foram encontrados no PATH, nem ADB no caminho padrão do SDK; bundles não são APK/IPA. LAN não é internet; túnel Expo não encaminha Auth/API/Realtime.
 
 1. PC/S25 na mesma LAN privada; IPv4 por `Get-NetIPConfiguration`. Preserve volumes, chave ES256/issuer e pepper. Siga Auth/callback da [5B](stage-5b.md#galaxy-s25-ultra--preparação-e-roteiro-pendente).
 2. Inicie Docker e `auth:local`. Realtime usa proxy Supabase/Auth **54321**, incluindo upgrade WebSocket; API **8090**, Expo **8081**. Telefone não acessa PostgreSQL **54322** ou Mailpit **54324**.

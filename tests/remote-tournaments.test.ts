@@ -51,6 +51,87 @@ const deferred = <T>() => {
   return { resolve, promise };
 };
 
+test("GET com 401 do token anterior usa a sessão renovada uma única vez antes de publicar", async () => {
+  const { journal } = setup("token-race");
+  const old = deferred<Response>();
+  let token = "previous-session";
+  const request = jest.fn(async (_url: unknown, init?: RequestInit) => {
+    if (request.mock.calls.length === 1) return old.promise;
+    expect(init?.headers).toMatchObject({
+      Authorization: "Bearer renewed-session",
+    });
+    return response({
+      tournamentId: id,
+      revision: 2,
+      syncSequence: 3,
+      tournament: tournamentFixture("draft"),
+    });
+  });
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => token,
+    request,
+    journal,
+  );
+  const reading = client.detail(id);
+  token = "renewed-session";
+  old.resolve(response({ error: "UNAUTHORIZED" }, 401));
+  await expect(reading).resolves.toMatchObject({
+    revision: 2,
+    syncSequence: 3,
+  });
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(client.getSnapshot().details[id].status).toBe("success");
+  client.dispose();
+});
+
+test("renovações repetidas não criam loop de GET quando Auth continua recusando a sessão", async () => {
+  const { journal } = setup("token-refused");
+  let token = "session-0";
+  const request = jest.fn(async () => {
+    token += "-renewed";
+    return response({ error: "UNAUTHORIZED" }, 401);
+  });
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => token,
+    request,
+    journal,
+  );
+  await expect(client.detail(id)).rejects.toThrow("Entre na sua conta");
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(client.getSnapshot().details[id].data).toBeUndefined();
+  client.dispose();
+});
+
+test("401 de escrita não reaplica comando automaticamente mesmo quando o token muda", async () => {
+  const { journal } = setup("write-token-race");
+  let token = "previous-session";
+  const request = jest.fn(async () => {
+    token = "renewed-session";
+    return response({ error: "UNAUTHORIZED" }, 401);
+  });
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => token,
+    request,
+    journal,
+  );
+  await expect(
+    client.manageInvitation(id, "create_invite", {
+      role: "viewer",
+      expiresInHours: 1,
+      maxUses: 1,
+    }),
+  ).rejects.toThrow("Entre na sua conta");
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(await client.hasPendingInvitationManagement(id)).toBe(true);
+  client.dispose();
+});
+
 test("GET antigo com erro não restaura revisão anterior a um comando confirmado", async () => {
   const { journal } = setup(),
     old = deferred<Response>();

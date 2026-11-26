@@ -463,7 +463,11 @@ export class RemoteTournaments {
     this.pending.set(key, promise);
     return promise;
   }
-  private async http<T>(path: string, body?: unknown): Promise<T> {
+  private async http<T>(
+    path: string,
+    body?: unknown,
+    allowRenewedRead = true,
+  ): Promise<T> {
     const resourceId =
       /^\/tournaments\/([^/?]+)/.exec(path)?.[1] ??
       (body &&
@@ -494,6 +498,21 @@ export class RemoteTournaments {
         cache: "no-store",
       });
       const data = await response.json();
+      // Auth can rotate the JWT while this GET is still awaiting its old 401.
+      // Retry only that read, once, with the current token. Commands retain
+      // their explicit journal/replay protocol and are never retried here.
+      const currentToken = this.token();
+      if (
+        response.status === 401 &&
+        body === undefined &&
+        allowRenewedRead &&
+        currentToken &&
+        currentToken !== token &&
+        !this.abort.signal.aborted &&
+        (!resourceId ||
+          accessGeneration === (this.accessGeneration.get(resourceId) ?? 0))
+      )
+        return this.http<T>(path, undefined, false);
       if (!response.ok)
         throw new RemoteError(
           response.status === 401 ? "UNAUTHORIZED" : data.error,

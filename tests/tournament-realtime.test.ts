@@ -217,6 +217,48 @@ test("erro de canal reconecta com backoff; callbacks antigos não entram na nova
   await jest.advanceTimersByTimeAsync(0);
   expect(h.states.get(cup)).toMatchObject({ sequence: 0, status: "connected" });
 });
+
+test("renovação de sessão revalida um 401 anterior e só reinscreve após GET autorizado", async () => {
+  const h = setup();
+  sync = h.sync;
+  sync.retain(cup);
+  await flush();
+  h.channels[0].status("SUBSCRIBED");
+  await jest.advanceTimersByTimeAsync(0);
+  h.request.mockRejectedValueOnce({ status: 401 });
+  sync.refresh();
+  await jest.advanceTimersByTimeAsync(80);
+  expect(h.states.get(cup)?.status).toBe("access-ended");
+  expect(h.channels[0].stop).toHaveBeenCalledTimes(1);
+  // Auth has now renewed the same identity. A fresh GET must precede any join.
+  h.cursor(7);
+  sync.refresh();
+  await flush();
+  expect(h.channels).toHaveLength(2);
+  expect(h.states.get(cup)?.status).not.toBe("connected");
+  h.channels[1].status("SUBSCRIBED");
+  await jest.advanceTimersByTimeAsync(0);
+  expect(h.states.get(cup)).toMatchObject({ sequence: 7, status: "connected" });
+  h.channels[0].receive(signal(99));
+  expect(h.states.get(cup)?.sequence).toBe(7);
+});
+
+test("retorno ao foreground revalida acesso encerrado sem reinscrever membro ainda removido", async () => {
+  const h = setup();
+  sync = h.sync;
+  h.request.mockRejectedValueOnce({ status: 403 });
+  sync.retain(cup);
+  await flush();
+  expect(h.states.get(cup)?.status).toBe("access-ended");
+  expect(h.channels).toHaveLength(0);
+  sync.setActive(false);
+  h.request.mockRejectedValueOnce({ status: 403 });
+  sync.setActive(true);
+  await flush();
+  expect(h.request).toHaveBeenCalledTimes(2);
+  expect(h.states.get(cup)?.status).toBe("access-ended");
+  expect(h.channels).toHaveLength(0);
+});
 test("negação da API não abre canal e liberação durante GET impede assinatura tardia", async () => {
   const h = setup();
   sync = h.sync;

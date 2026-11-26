@@ -298,8 +298,15 @@ export function createTournamentService(
           "select role,participant_id from public.tournament_members where tournament_id=$1 and user_id=$2",
           [id, actor.userId],
         );
+        const {
+          rows: [head],
+        } = await c.query(
+          "select sequence from matchmaking_private.tournament_sync_heads where tournament_id=$1",
+          [id],
+        );
         return {
           ...tournamentResponse(id, revision, await loadTournament(c, id)),
+          syncSequence: Number(head?.sequence ?? 0),
           access: {
             role:
               t.owner_user_id === actor.userId && !actor.isAnonymous

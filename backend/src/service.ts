@@ -21,6 +21,7 @@ import type { Tournament } from "../../src/features/tournaments/domain/types";
 import { parseImportSnapshot } from "../../src/features/tournaments/domain/snapshot";
 
 export type CommandResponse = {
+  syncSequence?: number;
   access?: {
     role: "organizer" | "participant" | "viewer";
     participantId?: string;

@@ -67,6 +67,7 @@ try {
         "backend/test/database.integration.ts",
         "backend/test/cloud.integration.ts",
         "backend/test/invites.integration.ts",
+        "backend/test/realtime-signals.integration.ts",
       ],
       {
         env: {

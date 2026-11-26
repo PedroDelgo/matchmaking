@@ -20,9 +20,9 @@ Primeira checagem desta retomada: 5 Node aprovados, 193 Jest aprovados e um caso
 
 Correções da retomada: mock HTTP recebeu tipo de resposta explícito, e o teste passou a consultar o status dentro do card acessível do torneio, evitando confusão com o filtro. As verificações de retorno ao foco, resumo atualizado, ausência de assinatura própria e modo local foram preservadas. Depois disso, todas as 30 suítes passaram. A pesquisa Refero desta retomada também retornou `NO_SUBSCRIPTION`; o sistema visual/referências existentes continuam como alvo.
 
-## Estado inicial e continuidade
+## Execução inicial preservada
 
-`main` limpa e sincronizada com `origin/main`, HEAD `75414c1`. Os sete commits da 5D já estavam enviados; seu relatório registra o estado histórico. Nenhum commit foi recriado. Status, branch, log de 25 commits, diffs normal/cached e arquivos não rastreados foram verificados antes das edições. Nenhum AGENTS adicional foi encontrado.
+A execução inicial já registrada começou em `main` limpa e sincronizada com `origin/main`, HEAD `75414c1`. Os sete commits da 5D já estavam enviados; seu relatório registra o estado histórico. Nenhum commit foi recriado. Status, branch, log de 25 commits, diffs normal/cached e arquivos não rastreados foram verificados antes daquelas edições. Nenhum AGENTS adicional foi encontrado. O estado diferente encontrado nesta retomada está discriminado acima.
 
 Consultados README, relatórios 5A–5D, arquitetura, decisões visuais, configuração Supabase, migrations/grants/RLS, serviços, Auth, cache/journal, telas e testes. Base reexecutada: TypeScript app/backend, ESLint, **164 Jest/25 suítes, 5 Node, 37 PostgreSQL e 15 no runner Auth**, aprovados. Os 96 casos existentes de navegador foram preservados para a matriz final, sem execução baseline separada nesta etapa. O primeiro Node/TSX encontrou restrição da sandbox (`uv_os_get_passwd`); a repetição autorizada passou.
 
@@ -78,6 +78,8 @@ Migration incremental **`20261126000700_tournament_realtime_signals.sql`**, pres
 
 Triggers inserem sinais **na mesma transação** do agregado/acesso. Realtime só entrega INSERT após COMMIT. Rollback remove sinal e avanço de cursor; replay idempotente não repete evento competitivo. Raiz do torneio continua sendo o lock comum; sequências são ordenadas por torneio e torneios distintos não dependem de lock global. Sem chamada externa com lock aberto.
 
+Novos escritores e intervenções administrativas devem bloquear a raiz antes de alterar filhos. Os triggers não substituem essa ordem de locks do serviço.
+
 No máximo **256 sinais por torneio**, com head preservado. PK `(tournament_id, sequence)` atende filtro/retenção; índice parcial `(recipient_user_id, tournament_id)` atende notificações dirigidas. Números limitados ao inteiro seguro JavaScript. O feed não é histórico recuperável. Há limite por torneio, mas não política de exclusão por tempo de torneios inativos.
 
 Publicação `supabase_realtime` dedicada somente a `tournament_signals`, **exclusivamente INSERT**. DELETE de poda não deve ser observado nem por assinatura maliciosa de `*`/DELETE, pois o protocolo não aplica a mesma proteção RLS aos deletes. A migration recusa publicação `ALL TABLES`, schemas/tabelas alheias, sem alterá-los silenciosamente. Acrescentar outra tabela exige revisão explícita.
@@ -92,6 +94,8 @@ Publicação `supabase_realtime` dedicada somente a `tournament_signals`, **excl
 - Se o aviso se perder, retomada/reconexão faz GET e aplica a negativa. Offline pode manter o último snapshot até revalidação; cópias já entregues não podem ser apagadas remotamente. Sem promessa de expulsão instantânea sem transporte.
 
 Logout continua sem invalidar imediatamente um access JWT já emitido, limite da 5B. O cliente retira canais/cache; expiração e RLS continuam no servidor. Sessão anônima autenticada recebe isolamento por `user_id`; não é `anon` e não ganha escrita competitiva.
+
+A política de canal é calculada na entrada/renovação, conforme a documentação citada; não se pressupõe que um DELETE de membership encerre sozinho todo socket existente. A prova deixa o assinante removido conectado, observa sua invalidação dirigida e confirma ausência do sinal competitivo posterior, recebido pelo organizador. Depois encerra o canal e comprova recusa de um novo join. O aplicativo efetua o encerramento ao receber o aviso; GET/RLS sustentam a negativa mesmo para um cliente que ignore esse protocolo.
 
 ## Cliente, cache e reconexão
 
@@ -136,7 +140,7 @@ Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fe
 | PostgreSQL real | **48 aprovados**, 37 anteriores + 11 sinais |
 | Auth real | **15 aprovados** nesta retomada |
 | Realtime real | **9 no runner**, 8 filhos + pai, aprovados nesta retomada, com restart real |
-| Playwright | 96 anteriores + 16 novos; matriz de **112** em execução nesta retomada |
+| Playwright | Primeira matriz: **112 aprovados em 17,4 min**; segunda matriz com correção final de renovação em execução |
 | Web/backend/Hermes/compatibilidade | Builds dos runners e dois Hermes aprovados; Expo compatível; web estável final pendente |
 
 PostgreSQL comprova payload mínimo, publicação INSERT-only, RLS/grants, COMMIT/ROLLBACK, replay/conflito sem duplicação, rollback após gravação, acesso sem revisão falsa, remoção dirigida, retenção, concorrência e emissor negado aos clientes/serviço.
@@ -146,6 +150,8 @@ Realtime usa contas permanentes/anônima reais, JWT ES256/JWKS, HTTP compilado e
 E2E: contextos independentes e serviços reais. Quatro cenários em quatro larguras: completo de 4 com espectador/correções; 8 e 16 com admissão/sorteio/primeiro resultado; offline/revogação/A-B. O de 4 conclui rodadas, corrige final e invalida final por semifinal. Completude de 8/16 e regressões continuam nos testes anteriores. Envelope local comparado byte a byte. Sem mocks de Auth, banco, API ou WebSocket; somente simulação de rede.
 
 Traces, vídeo e screenshots desligados nos testes sensíveis. Diagnósticos automáticos de falha podem criar arquivos ignorados; não se garante ausência universal de dados pessoais em artefatos. Sem medição de FPS, carga, fan-out, bateria ou memória nativa.
+
+Após a primeira matriz: sete migrations, **17 tabelas de domínio com RLS**, publicação dedicada INSERT-only, política privada e container Realtime ativo. Zero bancos/logins temporários, contas de teste/anônimas e e-mails remanescentes; configuração pública corresponde à stack local. Busca específica contra segredos conhecidos da stack, chave privada e pepper em **269 arquivos** revisáveis e artefatos web/Hermes: zero ocorrências, sem expor valores. A inspeção será repetida após o fechamento; não é uma auditoria completa de segurança.
 
 Falhas intermediárias: ACK anterior à replicação; teste reutilizando canal já inscrito (teardown explícito); locator contando glifo junto do texto (passou a conferir aria-label). Revisão acrescentou cercas após journal, espera de teardown e reconciliação de GET antigo, sem remover testes/relaxar acesso.
 
@@ -218,6 +224,6 @@ Checkpoints recuperáveis: `bd0fc13` e `ba65900` já existiam e foram preservado
 
 Postgres Changes autoriza por assinante, com limites de throughput/fan-out; sem benchmark/dimensionamento. Retenção por torneio não garante entrega/replay: recuperação é snapshot autorizado. Restauração/época e retrocesso de cursor, HA, proxy confiável, TLS, carga, métricas/alertas e retenção global pendentes.
 
-Também pendentes: Android/iOS, Safari/Firefox, acessibilidade humana, domínio/App Links, CAPTCHA/abuso Auth, políticas de identidade anônima/journal/recibos, backup/rotação do pepper e observabilidade. Auditoria npm 5D: 22 moderados/zero altos ou críticos; revisão final será registrada se executada, sem correção forçada.
+Também pendentes: Android/iOS, Safari/Firefox, acessibilidade humana, domínio/App Links, CAPTCHA/abuso Auth, políticas de identidade anônima/journal/recibos, backup/rotação do pepper e observabilidade. Auditoria npm repetida nesta retomada: **22 moderados, zero altos/críticos**, sem correção forçada.
 
 Sem chat, push notifications, ranking global, pagamentos, presença, transferência de ownership, anotador delegado ou operação pública. Notificação não concede permissão, executa comando ou substitui concorrência/idempotência. Próxima etapa: homologação em dois dispositivos e planejamento operacional medido.

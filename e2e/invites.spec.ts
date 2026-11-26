@@ -464,7 +464,7 @@ test.describe("Convites reais, QR e entrada autorizada", () => {
       await expect(field(invited, "Nome ou apelido")).toHaveCount(0);
       await expect(button(invited, "Criar convite")).toHaveCount(0);
       await expect(button(invited, "Sortear confrontos")).toBeDisabled();
-      await expect(text(page, "1/4 confirmados")).toBeVisible();
+      await expect(text(page, "2/4 confirmados")).toBeVisible();
       await button(page, "Atualizar acessos").click();
       await expect(text(page, "2/4 confirmados")).toBeVisible();
       const registered = await newContext(browser, page, info, contexts, owned);

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
 import { Shell } from "../components/Shell";
@@ -10,10 +10,44 @@ import { RemoteTournamentNotice } from "../components/RemoteTournamentNotice";
 import { getRanking } from "../features/tournaments/engine/tournament";
 import { shareText } from "../utils/share";
 import { colors } from "../theme/tokens";
+import { useAuth } from "../features/auth/AuthProvider";
 
 export function ChampionScreen() {
   const source = useTournament(),
     t = source.tournament;
+  const auth = useAuth();
+  const scope = source.cloud
+    ? source.client
+      ? `${source.client.apiUrl}|${source.client.userId}`
+      : null
+    : "local";
+  const [presentations, setPresentations] = useState<{
+    scope: string;
+    keys: string[];
+  }>({ scope: scope ?? "", keys: [] });
+  // Preserve a presentation marker during revalidation of the same identity,
+  // while discarding it on logout or an actual account/API change.
+  if (
+    (scope && scope !== presentations.scope) ||
+    (source.cloud &&
+      auth.status === "signedOut" &&
+      presentations.keys.length > 0)
+  ) {
+    setPresentations({ scope: scope ?? "", keys: [] });
+  }
+  const rememberPresentation = useCallback(
+    (key: string) => {
+      setPresentations((previous) =>
+        previous.keys.includes(key)
+          ? previous
+          : {
+              scope: scope ?? previous.scope,
+              keys: [...previous.keys.slice(-15), key],
+            },
+      );
+    },
+    [scope],
+  );
   const [feedback, setFeedback] = useState(""),
     [shareFallback, setShareFallback] = useState(false),
     [sharing, setSharing] = useState(false);
@@ -40,6 +74,7 @@ export function ChampionScreen() {
   if (!champion || !entry)
     return (
       <Shell>
+        <RemoteTournamentNotice source={source} />
         <EmptyState
           title="O troféu ainda está em jogo."
           description="Conclua a final para descobrir quem leva esse campeonato."
@@ -67,6 +102,8 @@ export function ChampionScreen() {
       <ChampionReveal
         key={revealKey}
         runKey={revealKey}
+        skipPresentation={presentations.keys.includes(revealKey)}
+        onPresented={rememberPresentation}
         championName={champion.displayName}
         tournamentName={t.name}
         modality={t.modality}

@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { router } from "expo-router";
 import { Text, Button, Notice, LoadingState } from "./ui";
 import type { useTournament } from "../features/tournaments/useTournament";
+import { ConnectionStatus } from "./ConnectionStatus";
 export function RemoteTournamentNotice({
   source,
 }: {
@@ -15,6 +16,30 @@ export function RemoteTournamentNotice({
       <Text variant="label">
         Na nuvem{source.tournament ? ` · revisão confirmada` : ""}
       </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+        }}
+      >
+        <ConnectionStatus
+          status={
+            source.sync?.status ?? (source.client ? "connecting" : "offline")
+          }
+        />
+        {source.client && source.sync?.status !== "access-ended" && (
+          <Button
+            label="Atualizar"
+            accessibilityLabel="Atualizar sincronização"
+            icon="refresh-outline"
+            variant="ghost"
+            onPress={() => void source.reload()?.catch(() => {})}
+          />
+        )}
+      </View>
       {source.status === "loading" ? <LoadingState /> : null}
       {source.status === "refreshing" ? (
         <Text>Atualizando campeonato…</Text>

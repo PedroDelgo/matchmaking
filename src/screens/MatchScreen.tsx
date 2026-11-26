@@ -152,6 +152,7 @@ function MatchContent({
     [confirm, setConfirm] = useState(false),
     [editing, setEditing] = useState(false),
     [saved, setSaved] = useState(false);
+  const [editRevision, setEditRevision] = useState(source.revision);
   const { width, fontScale } = useWindowDimensions();
   const wide = width >= 700 && fontScale < 1.4,
     stacked = width < 360 || fontScale >= 1.4;
@@ -169,6 +170,8 @@ function MatchContent({
   const p1 = t.participants.find((p) => p.id === m.participant1Id),
     p2 = t.participants.find((p) => p.id === m.participant2Id);
   const locked = m.status === "completed" && !editing;
+  const changedWhileEditing =
+    source.cloud && !locked && editRevision !== source.revision;
   const isFinal =
     m.nextMatchId === null && m.roundIndex === t.rounds.length - 1;
   const hasDownstream = (() => {
@@ -237,6 +240,13 @@ function MatchContent({
   };
   const save = async () => {
     if (submitting.current) return;
+    if (changedWhileEditing) {
+      setConfirm(false);
+      setError(
+        "O campeonato foi atualizado durante esta edição. Revise o resultado recente antes de confirmar.",
+      );
+      return;
+    }
     submitting.current = true;
     try {
       const updated = await source.score(
@@ -244,6 +254,7 @@ function MatchContent({
         Number(a),
         Number(b),
         Number(a) === Number(b) ? tie : undefined,
+        editRevision,
       );
       setConfirm(false);
       setEditing(false);
@@ -272,6 +283,26 @@ function MatchContent({
           style={{ alignSelf: "flex-start", marginBottom: 20 }}
           onPress={() => router.dismissTo(source.href("bracket"))}
         />
+        {changedWhileEditing && (
+          <View style={{ gap: 12, marginBottom: 20 }}>
+            <Notice message="O campeonato foi atualizado durante esta edição. Seus valores ainda não foram enviados; revise o estado confirmado antes de continuar." />
+            <Button
+              label="Revisar resultado atualizado"
+              variant="outline"
+              onPress={() => {
+                setA(String(m.score1 ?? 0));
+                setB(String(m.score2 ?? 0));
+                setTie(
+                  m.score1 === m.score2 ? (m.winnerId ?? undefined) : undefined,
+                );
+                setEditRevision(source.revision);
+                setError("");
+                setConfirm(false);
+                setSaved(false);
+              }}
+            />
+          </View>
+        )}
         <PageHeading
           eyebrow={`${t.name} / ${t.rounds[m.roundIndex]?.label}`}
           title={`Confronto ${m.positionIndex + 1}`}
@@ -508,6 +539,7 @@ function MatchContent({
                     label="Corrigir resultado"
                     variant="outline"
                     onPress={() => {
+                      setEditRevision(source.revision);
                       setA(String(m.score1));
                       setB(String(m.score2));
                       setTie(
@@ -524,7 +556,7 @@ function MatchContent({
                 <>
                   <Button
                     label="Confirmar resultado"
-                    disabled={source.busy}
+                    disabled={source.busy || changedWhileEditing}
                     icon="checkmark"
                     onPress={() => {
                       const e = validate();

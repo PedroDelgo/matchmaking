@@ -120,6 +120,8 @@ Estados: **Conectando**, **Conectado**, **Reconectando**, **Sem conexão**, **At
 
 Skill Refero consultada; pesquisa ao vivo retornou `NO_SUBSCRIPTION`. Usadas referências já pesquisadas nas [decisões visuais](design-decisions.md) e guia de craft: SAP Good Energy/Strava, branco/grafite/laranja, tipografia, labels e foco existentes. Status textual com ícone/live region, sem depender só de cor. Sem redesign, logo alterada ou imagem nova.
 
+Nesta retomada, capturas da sala em **320/1440 px**, conectada e offline, foram inspecionadas sem overflow horizontal. Usaram conta/torneio fictícios próprios, sem gerar convite, e sem senha, e-mail ou credencial nas imagens. Os recursos exatos foram removidos ao terminar; capturas ficam em `.artifacts/`, ignorado. O botão Atualizar permanece acessível e o aviso offline quebra em linhas no celular sem sobrepor o conteúdo.
+
 ## Validação executada e restante
 
 Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fechar após matriz final:
@@ -133,7 +135,7 @@ Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fe
 | Auth real | **15 aprovados** nesta retomada |
 | Realtime real | **9 no runner**, 8 filhos + pai, aprovados nesta retomada, com restart real |
 | Playwright | 96 anteriores + 16 novos; matriz de **112** em execução nesta retomada |
-| Web/backend/Hermes/compatibilidade | Final pendente |
+| Web/backend/Hermes/compatibilidade | Builds dos runners e dois Hermes aprovados; Expo compatível; web estável final pendente |
 
 PostgreSQL comprova payload mínimo, publicação INSERT-only, RLS/grants, COMMIT/ROLLBACK, replay/conflito sem duplicação, rollback após gravação, acesso sem revisão falsa, remoção dirigida, retenção, concorrência e emissor negado aos clientes/serviço.
 
@@ -208,7 +210,7 @@ Sem aparelho/emulador/development build instalado. ADB/JDK não encontrados no P
 
 Configuração: TOML, runner Auth e package. Banco: migration 007/asserts e testes de sinais. API: detalhe/cursor e tipo de resposta. Cliente: novos `remote/realtime.ts`, `transport.ts`; cache, provider e `useTournament`. UI: novo `ConnectionStatus`, notice, gestão de convites, partida, campeão/apresentação. Testes: runner Realtime, cache/provider/coordenador/transporte/interface e `e2e/realtime.spec.ts`; convites antigos agora aguardam atualização automática preservando botão manual. Documentação: este relatório, README, arquitetura e decisões visuais.
 
-Commits/hashes e estado final serão inseridos após validação. Stage seletivo, autor histórico por comando sem mudar configuração Git, sem reset/amend/force push/builds/segredos.
+Checkpoints recuperáveis: `bd0fc13` e `ba65900` já existiam e foram preservados; `fa2234f` registra o cliente/reconciliação/isolamento validado nesta retomada. UI foi validada nas 194 Jest, TypeScript/lint e capturas descritas acima. A matriz E2E ainda executa; seus resultados não são presumidos. Tabela completa de commits e estado final serão registrados após a validação. Stage seletivo, autor histórico por comando sem mudar configuração Git; sem reset/amend/force push, segredos ou builds no Git.
 
 ## Limites e próximos passos
 

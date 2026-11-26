@@ -42,7 +42,9 @@ function InviteManagerBody({
   canManage,
   status = "draft",
 }: Props) {
-  const { client } = useRemoteTournaments();
+  const remote = useRemoteTournaments();
+  const { client } = remote;
+  const sync = remote.syncById?.[tournamentId];
   const [invites, setInvites] = useState<InvitationSummary[]>([]),
     [members, setMembers] = useState<AdmittedMember[]>([]),
     [role, setRole] = useState<"participant" | "viewer">(
@@ -82,51 +84,73 @@ function InviteManagerBody({
         );
     }
   }, [client, canManage, tournamentId]);
-  const refresh = useCallback(async () => {
-    if (!client) return;
-    const generation = ++refreshGeneration.current;
-    setRefreshing(true);
-    setError("");
-    const results = await Promise.allSettled([
-      client.detail(tournamentId, true),
-      ...(canManage
-        ? [
-            client.invitationList(tournamentId, "invites"),
-            client.invitationList(tournamentId, "members"),
-          ]
-        : []),
-    ]);
-    if (!live.current || generation !== refreshGeneration.current) return;
-    if (canManage) {
-      const invitations = results[1],
-        admitted = results[2];
-      if (invitations?.status === "fulfilled") {
-        const items = (invitations.value as { items: InvitationSummary[] })
-          .items;
-        setInvites(items);
-        setSecret((current) =>
-          current?.invite &&
-          items.some(
-            (item) =>
-              item.id === current.invite!.id && item.status !== "active",
-          )
-            ? null
-            : current,
-        );
+  const refresh = useCallback(
+    async (includeDetail = true) => {
+      if (!client) return;
+      const generation = ++refreshGeneration.current;
+      setRefreshing(true);
+      setError("");
+      const results = await Promise.allSettled([
+        includeDetail
+          ? client.detail(tournamentId, true)
+          : Promise.resolve(null),
+        ...(canManage
+          ? [
+              client.invitationList(tournamentId, "invites"),
+              client.invitationList(tournamentId, "members"),
+            ]
+          : []),
+      ]);
+      if (!live.current || generation !== refreshGeneration.current) return;
+      if (canManage) {
+        const invitations = results[1],
+          admitted = results[2];
+        if (invitations?.status === "fulfilled") {
+          const items = (invitations.value as { items: InvitationSummary[] })
+            .items;
+          setInvites(items);
+          setSecret((current) =>
+            current?.invite &&
+            items.some(
+              (item) =>
+                item.id === current.invite!.id && item.status !== "active",
+            )
+              ? null
+              : current,
+          );
+        }
+        if (admitted?.status === "fulfilled")
+          setMembers((admitted.value as { items: AdmittedMember[] }).items);
       }
-      if (admitted?.status === "fulfilled")
-        setMembers((admitted.value as { items: AdmittedMember[] }).items);
-    }
-    const failed = results.find((result) => result.status === "rejected");
-    if (failed?.status === "rejected")
-      setError(
-        failed.reason instanceof Error
-          ? failed.reason.message
-          : "Não foi possível atualizar os acessos. Os dados confirmados continuam disponíveis.",
-      );
-    setRefreshing(false);
-    await checkPending();
-  }, [client, tournamentId, canManage, checkPending]);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected")
+        setError(
+          failed.reason instanceof Error
+            ? failed.reason.message
+            : "Não foi possível atualizar os acessos. Os dados confirmados continuam disponíveis.",
+        );
+      setRefreshing(false);
+      await checkPending();
+    },
+    [client, tournamentId, canManage, checkPending],
+  );
+  useEffect(() => {
+    if (!canManage || !sync?.accessSequence || sync.status !== "connected")
+      return;
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) void refresh(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [canManage, sync?.accessSequence, sync?.status, refresh]);
+  useEffect(
+    () => () => {
+      refreshGeneration.current++;
+    },
+    [client, canManage],
+  );
   useEffect(() => {
     let active = true;
     void Promise.resolve().then(() => {
@@ -255,8 +279,9 @@ function InviteManagerBody({
       <Panel style={{ gap: 12, marginBottom: 24 }}>
         <Text variant="heading">Você acompanha esta disputa</Text>
         <Text color={colors.muted}>
-          Só o organizador altera participantes, chave e resultados. Atualize
-          para consultar a versão confirmada mais recente.
+          Só o organizador altera participantes, chave e resultados. A conexão
+          acompanha as alterações confirmadas; você também pode atualizar
+          manualmente.
         </Text>
         {error ? <Notice tone="error" message={error} /> : null}
         <Button
@@ -276,8 +301,8 @@ function InviteManagerBody({
         </Text>
         <Text variant="heading">A próxima disputa começa com um convite.</Text>
         <Text color={colors.muted}>
-          Escolha quem joga e quem acompanha. A sala é atualizada quando você
-          pede.
+          Escolha quem joga e quem acompanha. Com a conexão ativa, a sala
+          acompanha as entradas confirmadas automaticamente.
         </Text>
       </View>
       {error ? <Notice tone="error" message={error} /> : null}

@@ -17,6 +17,7 @@ import { colors, fonts, typography } from "../theme/tokens";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
 import { CloudListNotice } from "../components/CloudListNotice";
+import { useRemoteListRefresh } from "../hooks/useRemoteListRefresh";
 
 function BracketArtwork() {
   return (
@@ -137,6 +138,7 @@ function BracketArtwork() {
 export function HomeScreen() {
   const remote = useRemoteTournaments(),
     [source, setSource] = useState("all");
+  useRemoteListRefresh(remote.client);
   const tournaments = useAppStore((s) => s.tournaments),
     profile = useAppStore((s) => s.profile);
   const { desktop: wide, tablet, compact } = useResponsiveLayout();

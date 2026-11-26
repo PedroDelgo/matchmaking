@@ -1,4 +1,4 @@
-import React, { type ReactNode, useCallback, useEffect } from "react";
+import React, { type ReactNode, useCallback, useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
 import Animated, {
@@ -164,6 +164,8 @@ export function ChampionReveal({
   entry,
   finalResult,
   actions,
+  skipPresentation = false,
+  onPresented,
 }: {
   runKey: string;
   championName: string;
@@ -172,12 +174,19 @@ export function ChampionReveal({
   entry: RankingEntry;
   finalResult: ChampionFinalResult | null;
   actions: ReactNode;
+  skipPresentation?: boolean;
+  onPresented?: (key: string) => void;
 }) {
   const { reduced, ready } = useMotionPreference();
+  const [alreadyPresented] = useState(skipPresentation);
+  const quiet = reduced || alreadyPresented;
+  useEffect(() => {
+    if (ready) onPresented?.(runKey);
+  }, [ready, runKey, onPresented]);
   const { phase, skip, cancel } = useCompetitionSequence({
     runKey,
     steps: championSequence,
-    reduced,
+    reduced: quiet,
     ready,
   });
   useFocusEffect(useCallback(() => () => cancel(), [cancel]));
@@ -185,11 +194,11 @@ export function ChampionReveal({
   const wide = width >= tokens.breakpoints.tablet && fontScale < 1.6;
   const largeText = fontScale >= 1.6;
   const terminal = ["completed", "skipped", "cancelled"].includes(phase);
-  const running = ready && !reduced && !terminal && phase !== "idle";
+  const running = ready && !quiet && !terminal && phase !== "idle";
   const revealed =
-    (ready && reduced) || terminal || !["idle", "preparing"].includes(phase);
+    (ready && quiet) || terminal || !["idle", "preparing"].includes(phase);
   const trophyVisible =
-    (ready && reduced) || terminal || ["trophy", "celebrating"].includes(phase);
+    (ready && quiet) || terminal || ["trophy", "celebrating"].includes(phase);
 
   return (
     <View

@@ -8,9 +8,11 @@ import { useAppStore } from "../store/useAppStore";
 import { colors } from "../theme/tokens";
 import { useRemoteTournaments } from "../features/tournaments/remote/RemoteProvider";
 import { CloudListNotice } from "../components/CloudListNotice";
+import { useRemoteListRefresh } from "../hooks/useRemoteListRefresh";
 export function TournamentsScreen() {
   const remote = useRemoteTournaments(),
     [source, setSource] = useState("all");
+  useRemoteListRefresh(remote.client);
   const all = useAppStore((s) => s.tournaments),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState("");

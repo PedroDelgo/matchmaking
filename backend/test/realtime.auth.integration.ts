@@ -12,6 +12,11 @@ import {
 import { decodeJwt, decodeProtectedHeader } from "jose";
 import { Pool } from "pg";
 import type { Tournament } from "../../src/features/tournaments/domain/types";
+import {
+  TournamentRealtime,
+  type TournamentSync,
+} from "../../src/features/tournaments/remote/realtime";
+import { tournamentTransport } from "../../src/features/tournaments/remote/transport";
 
 // This proof intentionally uses the existing local Auth/PostgreSQL/Realtime.
 // No credentials or capability-bearing responses enter logs or assertion diffs.
@@ -824,6 +829,124 @@ test(
             () => guestWatch.signals.some((s) => s.sequence === head),
             "signal after anonymous resubscription",
           );
+        },
+      );
+      await context.test(
+        "real WebSocket frames reordered and duplicated reconcile once through the authorized API",
+        async () => {
+          // Keep a real, independently authenticated socket. Only delivery order
+          // after the actual transport callback is fault-injected here.
+          const sdk = createClient(authUrl, publicKey!, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
+            },
+          });
+          clients.push(sdk);
+          const restored = await sdk.auth.setSession({
+            access_token: owner.session.access_token,
+            refresh_token: owner.session.refresh_token,
+          });
+          assert.ok(!restored.error, "Independent real session restore failed");
+          await sdk.realtime.setAuth(owner.session.access_token);
+          const transport = tournamentTransport(sdk);
+          const frames: Signal[] = [];
+          const states: TournamentSync[] = [];
+          let receive!: (value: unknown) => void;
+          let hold = false;
+          let reads = 0;
+          let observedHead = 0;
+          let revoked = false;
+          const sync = new TournamentRealtime(
+            owner.session.user.id,
+            {
+              subscribe(id, next, status) {
+                receive = next;
+                return transport.subscribe(
+                  id,
+                  (value) => {
+                    if (hold) frames.push(value as Signal);
+                    else next(value);
+                  },
+                  status,
+                );
+              },
+            },
+            async (id) => {
+              reads++;
+              const value = await snapshot(owner, id);
+              observedHead = value.syncSequence;
+              sync.accepted(id, value.syncSequence);
+              return value;
+            },
+            (_id, state) => {
+              if (state) states.push({ ...state });
+            },
+            () => {
+              revoked = true;
+            },
+          );
+          const release = sync.retain(tournamentId);
+          try {
+            await until(
+              () => states.at(-1)?.status === "connected",
+              "real coordinator initial read/subscribe/reconcile",
+            );
+            assert.equal(reads, 2, "The subscription gap was not reconciled");
+            const baseline = reads;
+            hold = true;
+            await issued("viewer");
+            await issued("viewer");
+            await until(
+              () => frames.length === 2,
+              "two committed socket frames",
+            );
+            assert.equal(
+              reads,
+              baseline,
+              "Held frames reached the coordinator",
+            );
+            const [older, newer] = [...frames].sort(
+              (a, b) => a.sequence - b.sequence,
+            );
+            assert.ok(older.sequence < newer.sequence);
+            const latest = await snapshot();
+            assert.equal(newer.sequence, latest.syncSequence);
+            receive(newer);
+            receive(older);
+            receive(newer);
+            await until(
+              () =>
+                observedHead === latest.syncSequence &&
+                states.at(-1)?.status === "connected",
+              "reordered real frames converge to the canonical snapshot",
+            );
+            assert.equal(reads, baseline + 1, "Frames were not coalesced");
+            receive(older);
+            receive(newer);
+            await delay(200);
+            assert.equal(
+              reads,
+              baseline + 1,
+              "Old or duplicate frames refetched",
+            );
+            assert.ok(
+              states.every(
+                (state, index) =>
+                  index === 0 || state.sequence >= states[index - 1].sequence,
+              ),
+              "The synchronization cursor regressed",
+            );
+            assert.equal(revoked, false);
+          } finally {
+            release();
+            sync.dispose();
+            await until(
+              () => sdk.getChannels().length === 0,
+              "real coordinator channel cleanup",
+            );
+          }
         },
       );
       await context.test(

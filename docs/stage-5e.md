@@ -2,7 +2,7 @@
 
 Execução local iniciada em **26/11/2026**. Supabase Realtime informa alterações confirmadas; PostgreSQL, API e motor continuam decidindo o estado. Modo local, envelope v1, logo e identidade visual preservados. Sem serviço público, push ou deploy.
 
-**Registro em validação final:** nesta retomada, 199 Jest/30 suítes, TypeScript app/backend, ESLint, 5 Node, 48 PostgreSQL, 15 Auth e 9 Realtime passaram. A primeira matriz de 112 casos de navegador está em execução; haverá nova rodada com a correção final de renovação abaixo. Homologação nativa permanece pendente.
+**Etapa 5E concluída e comprovada localmente:** **112 casos de navegador, 199 Jest/30 suítes, 48 PostgreSQL, 5 Node, 15 Auth e 10 Realtime** aprovados, além de TypeScript app/backend, ESLint e builds. A matriz completa de navegador passou duas vezes; a última usa o código final de recuperação de sessão. Homologação nativa e operação pública permanecem pendentes.
 
 ### Auditoria da retomada
 
@@ -128,9 +128,9 @@ Skill Refero consultada; pesquisa ao vivo retornou `NO_SUBSCRIPTION`. Usadas ref
 
 Nesta retomada, capturas da sala em **320/1440 px**, conectada e offline, foram inspecionadas sem overflow horizontal. Usaram conta/torneio fictícios próprios, sem gerar convite, e sem senha, e-mail ou credencial nas imagens. Os recursos exatos foram removidos ao terminar; capturas ficam em `.artifacts/`, ignorado. O botão Atualizar permanece acessível e o aviso offline quebra em linhas no celular sem sobrepor o conteúdo.
 
-## Validação executada e restante
+## Validação executada
 
-Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fechar após matriz final:
+Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge em 1440/768/375/320 px:
 
 | Verificação | Resultado registrado |
 | --- | --- |
@@ -139,19 +139,26 @@ Windows/PowerShell, Node **24.22.1**, Docker local, Chromium/Edge. Números a fe
 | Node | **5 aprovados** nesta retomada |
 | PostgreSQL real | **48 aprovados**, 37 anteriores + 11 sinais |
 | Auth real | **15 aprovados** nesta retomada |
-| Realtime real | **9 no runner**, 8 filhos + pai, aprovados nesta retomada, com restart real |
-| Playwright | Primeira matriz: **112 aprovados em 17,4 min**; segunda matriz com correção final de renovação em execução |
-| Web/backend/Hermes/compatibilidade | Builds dos runners e dois Hermes aprovados; Expo compatível; web estável final pendente |
+| Realtime real | **10 no runner**, 9 filhos + pai, aprovados; inclui restart real e frames invertidos/duplicados |
+| Playwright | **112 aprovados em 19,3 min**, sem falhas/skips, com o código final |
+| Export web / build backend | Aprovados; web final reexportada com API estável `http://127.0.0.1:8090` após o E2E |
+| Android/iOS | Dois bundles Hermes finais aprovados; sem APK/IPA ou execução em aparelho |
+| Expo dependency check | `Dependencies are up to date` |
+| Auditoria npm | **22 moderados, zero altos/críticos**; sem correção forçada |
 
 PostgreSQL comprova payload mínimo, publicação INSERT-only, RLS/grants, COMMIT/ROLLBACK, replay/conflito sem duplicação, rollback após gravação, acesso sem revisão falsa, remoção dirigida, retenção, concorrência e emissor negado aos clientes/serviço.
 
 Realtime usa contas permanentes/anônima reais, JWT ES256/JWKS, HTTP compilado e login restrito. Conexões independentes observam commit, rollback sem sinal, draw/resultados/final/correção/replay, externo recusado, transporte público adversarial, remoção no canal aberto, refresh JWT e unsubscribe/reconnect. Restart só do container local identificado comprova API/DB sem Realtime e nova entrega após retorno. A variável abaixo autoriza essa interrupção isolada e o teste restaura o serviço em `finally`.
 
+O caso adicional usa o transporte/coordenador do aplicativo e um SDK autenticado independente. Dois sinais de criações reais de convite chegam pelo WebSocket; só então o teste segura sua entrega ao coordenador, inverte a ordem e repete os mesmos frames. Há uma única releitura autorizada, cursor sem regressão e snapshot igual ao GET canônico; repetir frames antigos não dispara outra consulta. Essa injeção determinística cobre falhas de entrega sem substituir Auth, API, PostgreSQL ou WebSocket por mocks. Não se afirma que a rede produziu naturalmente a duplicação. A suíte completa final terminou com **10 aprovações, zero falhas/skips**.
+
 E2E: contextos independentes e serviços reais. Quatro cenários em quatro larguras: completo de 4 com espectador/correções; 8 e 16 com admissão/sorteio/primeiro resultado; offline/revogação/A-B. O de 4 conclui rodadas, corrige final e invalida final por semifinal. Completude de 8/16 e regressões continuam nos testes anteriores. Envelope local comparado byte a byte. Sem mocks de Auth, banco, API ou WebSocket; somente simulação de rede.
+
+São **96 casos anteriores preservados + 16 novos**. A primeira matriz completa passou em 17,4 minutos. Enquanto ela executava sobre seu build fixo, a revisão encontrou a corrida de renovação do token. Os cinco testes específicos passaram após a correção; depois foi gerado outro build e repetida toda a matriz, com 112 aprovações em 19,3 minutos. Nenhum teste foi removido ou teve a expectativa enfraquecida. A suíte inicial de 194 Jest também foi ampliada para 199, não substituída.
 
 Traces, vídeo e screenshots desligados nos testes sensíveis. Diagnósticos automáticos de falha podem criar arquivos ignorados; não se garante ausência universal de dados pessoais em artefatos. Sem medição de FPS, carga, fan-out, bateria ou memória nativa.
 
-Após a primeira matriz: sete migrations, **17 tabelas de domínio com RLS**, publicação dedicada INSERT-only, política privada e container Realtime ativo. Zero bancos/logins temporários, contas de teste/anônimas e e-mails remanescentes; configuração pública corresponde à stack local. Busca específica contra segredos conhecidos da stack, chave privada e pepper em **269 arquivos** revisáveis e artefatos web/Hermes: zero ocorrências, sem expor valores. A inspeção será repetida após o fechamento; não é uma auditoria completa de segurança.
+A inspeção foi executada após a primeira matriz e repetida após a segunda, a suíte Realtime ampliada e a exportação web estável: sete migrations, **17 tabelas de domínio com RLS**, publicação dedicada INSERT-only, política privada e container Realtime ativo. **Zero bancos/logins temporários, contas de teste/anônimas e e-mails remanescentes**; configuração pública corresponde à stack local. Busca específica contra segredos conhecidos da stack, chave privada e pepper em **269 arquivos** revisáveis e artefatos web/Hermes: zero ocorrências, sem expor valores. Isso não equivale a uma auditoria completa de segurança.
 
 Falhas intermediárias: ACK anterior à replicação; teste reutilizando canal já inscrito (teardown explícito); locator contando glifo junto do texto (passou a conferir aria-label). Revisão acrescentou cercas após journal, espera de teardown e reconciliação de GET antigo, sem remover testes/relaxar acesso.
 
@@ -218,7 +225,30 @@ O usuário informou já ter executado o app pelo Expo Go. Nesta retomada não ho
 
 Configuração: TOML, runner Auth e package. Banco: migration 007/asserts e testes de sinais. API: detalhe/cursor e tipo de resposta. Cliente: novos `remote/realtime.ts`, `transport.ts`; cache, provider e `useTournament`. UI: novo `ConnectionStatus`, notice, gestão de convites, partida, campeão/apresentação. Testes: runner Realtime, cache/provider/coordenador/transporte/interface e `e2e/realtime.spec.ts`; convites antigos agora aguardam atualização automática preservando botão manual. Documentação: este relatório, README, arquitetura e decisões visuais.
 
-Checkpoints recuperáveis: `bd0fc13` e `ba65900` já existiam e foram preservados; `fa2234f` registra o cliente/reconciliação/isolamento validado nesta retomada. UI foi validada nas 194 Jest, TypeScript/lint e capturas descritas acima. A matriz E2E ainda executa; seus resultados não são presumidos. Tabela completa de commits e estado final serão registrados após a validação. Stage seletivo, autor histórico por comando sem mudar configuração Git; sem reset/amend/force push, segredos ou builds no Git.
+| Commit | Conteúdo |
+| --- | --- |
+| `bd0fc13` | Preservado: migration, sinais transacionais, autorização e provas PostgreSQL |
+| `ba65900` | Preservado: stack Realtime local e prova WebSocket autenticada |
+| `fa2234f` | Cliente, reconciliação, isolamento e invalidação de acesso |
+| `6754fc6` | Status real, atualização de sala/lista, proteção da edição e apresentação do campeão |
+| `5f75f80` | Recuperação após 401/JWT renovado, com repetição limitada de GET e escrita sem replay automático |
+| `d5e8626` | Prova E2E com sessões reais, mudanças competitivas e remoção de acesso |
+| Commit da prova adicional | Frames WebSocket reais invertidos/duplicados e reconciliação pelo coordenador do app; hash registrado após o commit |
+
+Os dois primeiros commits já existiam e foram preservados. Stage seletivo, autor histórico por comando sem mudar configuração Git; sem reset/amend/force push, segredos ou builds no Git. O commit final de documentação e o estado do Git serão registrados ao encerrar. Não houve push ou deploy.
+
+## Critérios comprovados localmente
+
+- [x] Assinatura WebSocket real com JWT Auth, admissão automática de jogador/espectador e isolamento de torneios/contas.
+- [x] Sorteio remoto 4/8/16, placares, progressão, final, campeão, estatísticas e correções sem atualização manual.
+- [x] API/motor como autoridade; sinais mínimos após commit, rollback sem sinal, concorrência e replay preservados.
+- [x] Canal privado, RLS por sinal, externo recusado, remoção com invalidação e ausência de dados competitivos posteriores.
+- [x] GET antes/depois do ACK, deduplicação, agrupamento, cursor monotônico, lacunas e resposta HTTP antiga protegidos.
+- [x] Queda/reconexão real, restart do serviço, unsubscribe, refresh JWT e recuperação limitada de leitura após 401.
+- [x] Logout/troca A-B e respostas tardias isolados; journal sem replay automático e envelope/motor local preservados.
+- [x] Status real, atualização manual, revisão de edição aberta e celebração sem repetição na reconexão.
+- [x] Regressões, builds, inspeção visual, limpeza de fixtures e documentação executados.
+- [ ] Homologação S25/iPhone, deep links instalados e operação pública — pendências explícitas, sem declaração de execução.
 
 ## Limites e próximos passos
 

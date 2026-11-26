@@ -12,7 +12,7 @@ export function useTournament(explicitId?: string) {
   const client = remote.client;
   useFocusEffect(
     useCallback(() => {
-      if (cloud && client && id) void client.detail(id, true).catch(() => {});
+      if (cloud && client && id) return client.retainTournament(id);
     }, [cloud, client, id]),
   );
   const detail = remote.details[id as keyof typeof remote.details];
@@ -24,6 +24,10 @@ export function useTournament(explicitId?: string) {
     canManage: !cloud || detail?.data?.access?.role === "organizer",
     id,
     client,
+    revision: detail?.data?.revision,
+    sync: cloud
+      ? remote.syncById?.[id as keyof typeof remote.syncById]
+      : undefined,
     busy: cloud && remote.busy,
     pending: cloud && remote.pending[id as keyof typeof remote.pending],
     status: cloud
@@ -60,6 +64,7 @@ export function useTournament(explicitId?: string) {
       score1: number,
       score2: number,
       tieBreakWinnerId?: string,
+      expectedRevision?: number,
     ) {
       if (cloud) {
         const m = tournament?.matches.find((m) => m.id === matchId);
@@ -73,6 +78,7 @@ export function useTournament(explicitId?: string) {
               score2,
               ...(tieBreakWinnerId ? { tieBreakWinnerId } : {}),
             },
+            expectedRevision,
           )
         ).tournament;
       }

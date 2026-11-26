@@ -51,6 +51,176 @@ const deferred = <T>() => {
   return { resolve, promise };
 };
 
+test("GET antigo com erro não restaura revisão anterior a um comando confirmado", async () => {
+  const { journal } = setup(),
+    old = deferred<Response>();
+  const original = tournamentFixture("draft"),
+    latest = addParticipant(original, "Nova entrada");
+  let reads = 0;
+  const request = jest.fn(async (url: unknown, init?: RequestInit) => {
+    if (init?.method === "POST")
+      return response({ tournamentId: id, revision: 3, tournament: latest });
+    if (String(url).includes("?"))
+      return response({ items: [], nextCursor: null });
+    if (++reads === 2) return old.promise;
+    return response({ tournamentId: id, revision: 1, tournament: original });
+  });
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "token",
+    request,
+    journal,
+  );
+  await client.detail(id);
+  const stale = client.detail(id, true).catch(() => {});
+  const saving = client.mutate(id, "add_participant", {
+    displayName: "Nova entrada",
+  });
+  for (
+    let i = 0;
+    i < 25 && client.getSnapshot().details[id].data?.revision !== 3;
+    i++
+  )
+    await Promise.resolve();
+  expect(client.getSnapshot().details[id].data?.revision).toBe(3);
+  old.resolve(response({ error: "TEMPORARY_FAILURE" }, 503));
+  await stale;
+  await saving;
+  expect(client.getSnapshot().details[id].data?.revision).toBe(3);
+  expect(
+    client.getSnapshot().details[id].data?.tournament.participants,
+  ).toHaveLength(1);
+  client.dispose();
+});
+
+test("revogação bloqueia respostas HTTP antigas e só releitura nova restaura acesso", async () => {
+  const { journal } = setup(),
+    delayed = deferred<Response>();
+  const snapshot = {
+    tournamentId: id,
+    revision: 1,
+    syncSequence: 8,
+    tournament: tournamentFixture("draft"),
+  };
+  let reads = 0;
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "token",
+    jest.fn(async () => (++reads === 1 ? delayed.promise : response(snapshot))),
+    journal,
+  );
+  const old = client.detail(id);
+  client.invalidateAccess(id);
+  delayed.resolve(response(snapshot));
+  await expect(old).rejects.toThrow("não tem acesso");
+  expect(client.getSnapshot().details[id].data).toBeUndefined();
+  await client.detail(id, true);
+  expect(client.getSnapshot().details[id].data?.revision).toBe(1);
+  client.dispose();
+});
+
+test("snapshot de acesso antigo na mesma revisão não substitui cursor mais recente", async () => {
+  const { journal } = setup();
+  let cursor = 8;
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "token",
+    jest.fn(async () =>
+      response({
+        tournamentId: id,
+        revision: 1,
+        syncSequence: cursor,
+        access: { role: cursor === 8 ? "viewer" : "participant" },
+        tournament: tournamentFixture("draft"),
+      }),
+    ),
+    journal,
+  );
+  await client.detail(id);
+  cursor = 7;
+  await client.detail(id, true);
+  expect(client.getSnapshot().details[id].data).toMatchObject({
+    syncSequence: 8,
+    access: { role: "viewer" },
+  });
+  client.dispose();
+});
+
+test("edição mantém a revisão informada mesmo quando cache recebeu revisão superior", async () => {
+  const { journal } = setup();
+  let sent: Record<string, unknown> | undefined;
+  const snapshot = {
+    tournamentId: id,
+    revision: 12,
+    tournament: tournamentFixture("active"),
+  };
+  const client = new RemoteTournaments(
+    "http://127.0.0.1:8090",
+    user,
+    () => "token",
+    jest.fn(async (_url: unknown, init?: RequestInit) => {
+      if (init?.method === "POST") sent = JSON.parse(init.body as string);
+      return response(snapshot);
+    }),
+    journal,
+  );
+  await client.detail(id);
+  await client.mutate(
+    id,
+    "record_result",
+    { matchId: snapshot.tournament.matches[0].id, score1: 3, score2: 1 },
+    9,
+  );
+  expect(sent?.expectedRevision).toBe(9);
+  client.dispose();
+});
+
+test.each([false, true])(
+  "revogação durante journal com falha=%s não restaura snapshot por fallback",
+  async (fail) => {
+    const { journal } = setup(),
+      finishing = deferred<void>();
+    const snapshot = {
+      tournamentId: id,
+      revision: 1,
+      tournament: tournamentFixture("draft"),
+    };
+    journal.finish = jest.fn(async () => {
+      await finishing.promise;
+      if (fail) throw new Error("disk unavailable");
+    });
+    const client = new RemoteTournaments(
+      "http://127.0.0.1:8090",
+      user,
+      () => "token",
+      jest.fn(async () => response(snapshot)),
+      journal,
+    );
+    await client.detail(id);
+    const saving = client.mutate(id, "rename_tournament", {
+      name: "Nova copa",
+    });
+    for (
+      let i = 0;
+      i < 30 && !jest.mocked(journal.finish).mock.calls.length;
+      i++
+    )
+      await Promise.resolve();
+    expect(journal.finish).toHaveBeenCalledTimes(1);
+    client.invalidateAccess(id);
+    finishing.resolve();
+    await expect(saving).rejects.toThrow("não tem acesso");
+    expect(client.getSnapshot().details[id]).toMatchObject({
+      status: "unauthorized",
+      data: undefined,
+    });
+    client.dispose();
+  },
+);
+
 test("journal persiste o envelope exato antes do envio, serializa cliques e isola contas sem tocar o envelope local", async () => {
   const { storage, disk, journal } = setup();
   disk.set("matchmaking-local-v1", "original");

@@ -5,6 +5,11 @@ import {
   parseImportSnapshot,
 } from "../domain/snapshot";
 import { createJournal } from "./journal";
+import {
+  TournamentRealtime,
+  type SyncTransport,
+  type TournamentSync,
+} from "./realtime";
 
 export type RemoteStatus =
   | "loading"
@@ -21,6 +26,7 @@ export type RemoteSnapshot = {
   };
   tournamentId: string;
   revision: number;
+  syncSequence?: number;
   tournament: Tournament;
 };
 export type InviteCredential = { kind: "token" | "code"; value: string };
@@ -81,6 +87,7 @@ type State = {
   details: Record<string, Detail>;
   busy: boolean;
   pending: Record<string, boolean>;
+  syncById: Record<string, TournamentSync>;
 };
 export class RemoteError extends Error {
   constructor(
@@ -195,6 +202,7 @@ export class RemoteTournaments {
     details: {},
     busy: false,
     pending: {},
+    syncById: {},
   };
   private listeners = new Set<() => void>();
   private abort = new AbortController();
@@ -202,8 +210,12 @@ export class RemoteTournaments {
   private journal: ReturnType<typeof createJournal>;
   private accessToken: string | null = null;
   private listGeneration = 0;
+  private accessGeneration = new Map<string, number>();
+  private realtime: TournamentRealtime;
   setAccessToken(token: string | null) {
+    const changed = this.accessToken !== token;
     this.accessToken = token;
+    if (token && changed) this.realtime.refresh();
   }
   constructor(
     readonly apiUrl: string,
@@ -214,6 +226,43 @@ export class RemoteTournaments {
     journal?: ReturnType<typeof createJournal>,
   ) {
     this.journal = journal ?? createJournal(`${apiUrl}|${userId}`);
+    this.realtime = new TournamentRealtime(
+      userId,
+      null,
+      (id) => this.detail(id, true),
+      (id, value) => {
+        const syncById = { ...this.state.syncById };
+        if (value) syncById[id] = value;
+        else delete syncById[id];
+        this.publish({ syncById });
+      },
+      (id) => this.invalidateAccess(id),
+    );
+  }
+  configureRealtime(transport: SyncTransport | null) {
+    this.realtime.configure(transport);
+  }
+  retainTournament(id: string) {
+    return this.realtime.retain(id);
+  }
+  setSyncActive(active: boolean) {
+    this.realtime.setActive(active);
+  }
+  invalidateAccess(id: string) {
+    this.accessGeneration.set(id, (this.accessGeneration.get(id) ?? 0) + 1);
+    this.listGeneration++;
+    this.publish({
+      items: this.state.items.filter((item) => item.tournamentId !== id),
+      details: {
+        ...this.state.details,
+        [id]: {
+          data: undefined,
+          status: "unauthorized",
+          error: remoteMessage("FORBIDDEN"),
+        },
+      },
+    });
+    this.realtime.endAccess(id);
   }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -384,6 +433,7 @@ export class RemoteTournaments {
     }
   }
   dispose() {
+    this.realtime.dispose();
     this.abort.abort();
     this.accessToken = null;
     this.state = {
@@ -393,6 +443,7 @@ export class RemoteTournaments {
       details: {},
       busy: false,
       pending: {},
+      syncById: {},
     };
     this.pending.clear();
     this.listeners.clear();
@@ -413,6 +464,17 @@ export class RemoteTournaments {
     return promise;
   }
   private async http<T>(path: string, body?: unknown): Promise<T> {
+    const resourceId =
+      /^\/tournaments\/([^/?]+)/.exec(path)?.[1] ??
+      (body &&
+      typeof body === "object" &&
+      "tournamentId" in body &&
+      typeof body.tournamentId === "string"
+        ? body.tournamentId
+        : undefined);
+    const accessGeneration = resourceId
+      ? (this.accessGeneration.get(resourceId) ?? 0)
+      : 0;
     const token = this.token();
     if (!token || this.abort.signal.aborted)
       throw new RemoteError("UNAUTHORIZED", 401);
@@ -439,6 +501,11 @@ export class RemoteTournaments {
         );
       if (!this.token() || this.abort.signal.aborted)
         throw new RemoteError("UNAUTHORIZED", 401);
+      if (
+        resourceId &&
+        accessGeneration !== (this.accessGeneration.get(resourceId) ?? 0)
+      )
+        throw new RemoteError("FORBIDDEN", 403);
       return data as T;
     } catch (e) {
       if (e instanceof RemoteError) throw e;
@@ -513,7 +580,8 @@ export class RemoteTournaments {
   detail(id: string, force = false): Promise<RemoteSnapshot> {
     if (!force && this.state.details[id]?.data)
       return Promise.resolve(this.state.details[id].data!);
-    return this.dedup(`detail:${id}`, async () => {
+    const accessGeneration = this.accessGeneration.get(id) ?? 0;
+    return this.dedup(`detail:${id}:${accessGeneration}`, async () => {
       void this.journal
         .peek(`mutation:${id}`)
         .then((e) =>
@@ -538,19 +606,31 @@ export class RemoteTournaments {
         );
         if (
           result.tournamentId !== id ||
-          !Number.isSafeInteger(result.revision)
+          !Number.isSafeInteger(result.revision) ||
+          result.revision < 0 ||
+          (result.syncSequence !== undefined &&
+            (!Number.isSafeInteger(result.syncSequence) ||
+              result.syncSequence < 0))
         )
           throw new RemoteError("INVALID_SNAPSHOT");
         parseImportSnapshot(result.tournament);
         this.accept(result);
         return this.state.details[id]?.data ?? result;
       } catch (e) {
+        if (accessGeneration !== (this.accessGeneration.get(id) ?? 0)) throw e;
         const f = this.failure(e);
+        if (
+          f.status === "unauthorized" ||
+          (e instanceof RemoteError && e.status === 404)
+        ) {
+          this.invalidateAccess(id);
+          throw e;
+        }
         this.publish({
           details: {
             ...this.state.details,
             [id]: {
-              data: f.status === "unauthorized" ? undefined : previous?.data,
+              data: this.state.details[id]?.data,
               ...f,
             },
           },
@@ -561,13 +641,32 @@ export class RemoteTournaments {
   }
   private accept(r: RemoteSnapshot) {
     const old = this.state.details[r.tournamentId]?.data;
-    if (old && old.revision > r.revision) return;
+    if (
+      old &&
+      (old.revision > r.revision ||
+        (r.syncSequence !== undefined &&
+          (old.syncSequence ?? 0) > r.syncSequence))
+    ) {
+      this.publish({
+        details: {
+          ...this.state.details,
+          [r.tournamentId]: { data: old, status: "success" },
+        },
+      });
+      return;
+    }
+    const next = {
+      ...r,
+      syncSequence: r.syncSequence ?? old?.syncSequence,
+      access: r.access ?? old?.access,
+    };
     this.publish({
       details: {
         ...this.state.details,
-        [r.tournamentId]: { data: r, status: "success" },
+        [r.tournamentId]: { data: next, status: "success" },
       },
     });
+    this.realtime.accepted(r.tournamentId, next.syncSequence);
   }
   private async operation(
     key: string,
@@ -606,9 +705,13 @@ export class RemoteTournaments {
         throw new RemoteError("INVALID_SNAPSHOT");
       }
       this.accept(r);
+      const accessGeneration = this.accessGeneration.get(r.tournamentId) ?? 0;
+      const stillAuthorized = () =>
+        accessGeneration === (this.accessGeneration.get(r.tournamentId) ?? 0);
       try {
         await this.journal.finish(key, e.id, r.tournamentId);
       } catch {
+        if (!stillAuthorized()) throw new RemoteError("FORBIDDEN", 403);
         this.publish({
           details: {
             ...this.state.details,
@@ -621,6 +724,7 @@ export class RemoteTournaments {
         });
         return this.state.details[r.tournamentId]?.data ?? r;
       }
+      if (!stillAuthorized()) throw new RemoteError("FORBIDDEN", 403);
       this.publish({
         pending: {
           ...this.state.pending,
@@ -632,7 +736,13 @@ export class RemoteTournaments {
       if (path === "/tournament-imports") return r;
       try {
         return await this.detail(r.tournamentId, true);
-      } catch {
+      } catch (error) {
+        if (
+          !stillAuthorized() ||
+          (error instanceof RemoteError &&
+            [401, 403, 404].includes(error.status))
+        )
+          throw error;
         this.publish({
           details: {
             ...this.state.details,
@@ -742,7 +852,12 @@ export class RemoteTournaments {
       throw new RemoteError("IMPORT_MISMATCH");
     return confirmed;
   }
-  async mutate(id: string, type: string, payload: unknown) {
+  async mutate(
+    id: string,
+    type: string,
+    payload: unknown,
+    expectedRevision?: number,
+  ) {
     const current = this.state.details[id]?.data;
     if (!current) throw new RemoteError("INVALID_SNAPSHOT");
     const key = `mutation:${id}`;
@@ -753,7 +868,7 @@ export class RemoteTournaments {
         {
           commandVersion: 1,
           tournamentId: id,
-          expectedRevision: current.revision,
+          expectedRevision: expectedRevision ?? current.revision,
           type,
           payload,
         },

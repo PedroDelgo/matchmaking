@@ -233,9 +233,10 @@ Configuração: TOML, runner Auth e package. Banco: migration 007/asserts e test
 | `6754fc6` | Status real, atualização de sala/lista, proteção da edição e apresentação do campeão |
 | `5f75f80` | Recuperação após 401/JWT renovado, com repetição limitada de GET e escrita sem replay automático |
 | `d5e8626` | Prova E2E com sessões reais, mudanças competitivas e remoção de acesso |
-| Commit da prova adicional | Frames WebSocket reais invertidos/duplicados e reconciliação pelo coordenador do app; hash registrado após o commit |
+| `6d26c98` | Frames WebSocket reais invertidos/duplicados e reconciliação pelo coordenador do app |
+| Commit deste relatório | Documentação final da 5E; hash em `git log` e na resposta final |
 
-Os dois primeiros commits já existiam e foram preservados. Stage seletivo, autor histórico por comando sem mudar configuração Git; sem reset/amend/force push, segredos ou builds no Git. O commit final de documentação e o estado do Git serão registrados ao encerrar. Não houve push ou deploy.
+Os dois primeiros commits já existiam e foram preservados; seis foram criados nesta retomada, incluindo o fechamento documental. Stage seletivo, autor histórico por comando sem mudar configuração Git; sem reset/amend/force push, segredos ou builds no Git. Estado ao encerrar: `main` limpa, **oito commits à frente de `origin/main`**, todos da 5E. O hash do commit final está em `git log` e na resposta final. Não houve push ou deploy.
 
 ## Critérios comprovados localmente
 

@@ -246,7 +246,7 @@ Validação final 5C: **140 testes Jest/23 suítes, 84 Playwright, 24 PostgreSQL
 
 A [entrega 5D](docs/stage-5d.md) acrescenta convites reais para jogar ou assistir, com link, código e QR gerado no dispositivo. O organizador cria/revoga convites e consulta os membros na sala. Quem recebe pode usar a conta atual ou iniciar uma sessão convidada sem e-mail/senha; só a confirmação explícita ocupa vaga. Participantes e espectadores consultam resultados, e o organizador continua responsável por alterá-los.
 
-O aceite confirma membership, jogador quando necessário, uso e recibo na mesma transação PostgreSQL. Última vaga/uso, expiração, revogação e repetição após resposta perdida são validados pelo servidor. A sala possui atualização manual; Realtime continua previsto para a 5E.
+O aceite confirma membership, jogador quando necessário, uso e recibo na mesma transação PostgreSQL. Última vaga/uso, expiração, revogação e repetição após resposta perdida são validados pelo servidor. A 5D entregou atualização manual; a sincronização automática foi acrescentada na 5E abaixo.
 
 Execute os mesmos `auth:local`, `api:local` e `web` descritos acima. A API prepara um pepper privado em `backend/.invite-pepper`, ignorado e preservado; não o copie para o cliente. A origem padrão dos convites é `http://127.0.0.1:8081`, válida somente no computador. Configure `MATCHMAKING_INVITE_BASE_URL` no processo servidor para outra origem de desenvolvimento. O [roteiro S25](docs/stage-5d.md#galaxy-s25-ultra-e-dois-dispositivos--roteiro-pendente) explica a LAN, portas e CORS exato; nenhum domínio público ou App Link foi configurado.
 
@@ -254,14 +254,35 @@ Sessão convidada não tem recuperação por e-mail: sair, limpar dados ou mudar
 
 Validação local: **164 Jest/25 suítes, 96 Playwright, 37 PostgreSQL, 5 Node e 15 no runner Auth real**, aprovados. TypeScript/lint, compatibilidade Expo, builds web/backend e bundles Hermes Android/iOS passaram. Aparelhos e deep links instalados continuam pendentes. Para navegador no telefone, Auth exige HTTPS/contexto seguro; HTTP LAN serve à prévia e ao caminho nativo de desenvolvimento, sem reduzir a exigência WebCrypto.
 
+## Sincronização autorizada — Etapa 5E
+
+A [entrega 5E](docs/stage-5e.md) acrescenta Supabase Realtime local com JWT real e sinais mínimos sob RLS. Entrada de amigos, acessos, sorteio, placares, correções e campeão atualizam nas sessões autorizadas. Cada sinal provoca releitura consistente pela API; o motor e a concorrência transacional permanecem os mesmos. O aplicativo informa Conectando/Conectado/Reconectando/Sem conexão/Atualizando/Acesso encerrado e preserva atualização manual.
+
+`auth:local` inicia também Realtime pelo proxy Supabase na porta **54321**. Use os mesmos `api:local` e `web` acima. Ao atualizar uma stack antiga sem Realtime, encerre seus processos e execute `npx.cmd supabase stop` padrão, seguido de `auth:local`, preservando volumes e chaves. Em duas sessões independentes, abra o mesmo campeonato admitido e aguarde **Conectado** antes de conferir atualização automática.
+
+```powershell
+npm.cmd run backend:test:db:local
+npm.cmd run backend:test:auth
+$env:MATCHMAKING_TEST_REALTIME_RESTART = '1'
+npm.cmd run backend:test:realtime
+Remove-Item Env:MATCHMAKING_TEST_REALTIME_RESTART
+npm.cmd run test:auth:e2e
+```
+
+Execute os runners em sequência. A variável autoriza a prova que para/reinicia **somente o container Realtime local identificado**, restaurado em `finally`; sem ela o runner falha nesse caso. Não execute essa interrupção junto de outras suítes. O [relatório](docs/stage-5e.md) registra as provas e o [roteiro S25](docs/stage-5e.md#galaxy-s25-ultra-e-segundo-dispositivo--pendente), incluindo LAN/Auth/API/WebSocket e limites de HTTPS.
+
+Remoção de acesso retira o snapshot quando a invalidação chega ou na revalidação posterior. Offline pode conservar dados já recebidos; não há garantia de apagar cópias anteriores. Uma edição de placar aberta mantém sua revisão inicial e exige revisão explícita após mudança remota. Reconexão recupera leitura e não reenvia comandos automaticamente.
+
+Validação local final: **199 Jest/30 suítes, 112 Playwright, 48 PostgreSQL, 5 Node, 15 Auth e 10 Realtime**, aprovados. A prova Realtime usa WebSockets reais, rollback, revogação, entrega invertida/duplicada e reinício isolado do serviço. TypeScript/lint, builds web/backend, bundles Hermes Android/iOS e compatibilidade Expo passaram. A execução em aparelhos permanece pendente.
+
 ## Limitações e próxima etapa
 
-Identidade/perfil, campeonatos remotos e convites funcionam com as APIs locais configuradas. Sincronização contínua e notificações continuam pendentes. Não há backup remoto ou ambiente de produção. O cache remoto é de memória por identidade; o journal separado guarda tentativas exatas, nomes/snapshots e, durante uma aceitação pendente, a credencial do convite. Não guarda tokens de sessão e não é sincronização offline. Pontos corridos e fase de grupos continuam futuros. Limpar dados ou desinstalar pode remover campeonatos locais e metadados de retomada.
+Identidade/perfil, campeonatos remotos, convites e sincronização funcionam com os serviços locais configurados. Notificações push e operação pública continuam pendentes. Não há backup remoto ou ambiente de produção. O cache remoto é de memória por identidade; o journal separado guarda tentativas exatas, nomes/snapshots e, durante uma aceitação pendente, a credencial do convite. Não guarda tokens de sessão e não é sincronização offline. Pontos corridos e fase de grupos continuam futuros. Limpar dados ou desinstalar pode remover campeonatos locais e metadados de retomada.
 
 A validação web foi feita no Chromium em quatro larguras (1440, 768, 375 e 320 px), com toque simulado nos projetos tablet e mobile. Safari, Firefox, aparelhos Android/iOS, leitores de tela e fontes ampliadas ainda precisam de homologação. A compilação de bundles não comprova execução nativa em aparelho.
 
-A auditoria npm repetida na Etapa 5D apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja o [relatório 5D](docs/stage-5d.md).
+A auditoria npm repetida na Etapa 5E apontou 22 alertas moderados e nenhum alto/crítico. As versões compatíveis do SDK foram preservadas; não foi aplicado `audit fix --force`. A revisão dos alertas transitivos continua pendente antes de publicação. Veja o [relatório 5E](docs/stage-5e.md).
 
-**Próximo passo:** homologar os fluxos no Android/iPhone e implementar a **5E**, com sincronização autorizada, reconexão e invalidação de acesso após commit. Persistência nativa, deep links, teclado e acessibilidade em aparelho continuam pendentes, assim como domínio/TLS, proteção contra abuso, retenção e operação pública.
+**Próximo passo:** homologar sincronização e reconexão em dois dispositivos Android/iPhone e medir carga/fan-out antes de definir a operação pública. Persistência nativa, deep links, teclado e acessibilidade em aparelho continuam pendentes, assim como domínio/TLS, proteção contra abuso, retenção global e recuperação de backups.
 
 Decisões visuais e referências: [docs/design-decisions.md](docs/design-decisions.md). O envio do código ao GitHub é separado da publicação do aplicativo. Nenhum deploy ou publicação em loja foi realizado.
